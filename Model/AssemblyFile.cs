@@ -12,7 +12,8 @@ namespace ChangeProperties
         public Connection VaultConn { get; set; }
         public List<FileProperty> Properties { get; set; } = new List<FileProperty> { };
 
-        public Dictionary<PropDef, object> ChangedProperties { get; set; } = new Dictionary<PropDef, object>();
+        public Dictionary<string, string> ChangedProperties { get; set; } = new Dictionary<string, string>();
+        public Dictionary<string, object> PrimaryProperties { get; set; } = new Dictionary<string, object>();
         public List<PropDef> PropDefs { get; set; }
 
         public AssemblyFile(File file, Connection vaultConn, List<PropDef> propDefs)
@@ -25,10 +26,10 @@ namespace ChangeProperties
         public void CreatePropertiesList(List<PropDef> propDefs)
         {
             PropInst[] fileProperties = VaultConn.WebServiceManager.PropertyService.GetPropertiesByEntityIds("FILE", new long[] { File.Id });
+
             Dictionary<long, string> propDefsDictionary = propDefs
                 .ToDictionary(
                     p => p.Id,
-                    //p => p.DispName.Contains("/") ? p.DispName.Replace("/", "lub") : p.DispName
                     p => Regex.Replace(p.DispName, @"[/\[\]]", match => match.Value == "/" ? "lub" : " ").TrimEnd()
                 );
             Dictionary<long, PropDef> propDefsIdDict = propDefs.ToDictionary(p => p.Id, p => p);
@@ -50,6 +51,8 @@ namespace ChangeProperties
                         Value = propInst.Val,
                         PropertyDef = propertyDef
                     });
+
+                    PrimaryProperties.Add(name, propInst.Val?.ToString() ?? null);
                 }
             }
         }

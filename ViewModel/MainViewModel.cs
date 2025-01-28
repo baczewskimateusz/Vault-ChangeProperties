@@ -1,16 +1,12 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Dynamic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Autodesk.Connectivity.Explorer.ExtensibilityTools;
 using Autodesk.Connectivity.WebServices;
@@ -33,9 +29,15 @@ namespace ChangeProperties
 
         public event PropertyChangedEventHandler PropertyChanged;
 
-        public MainViewModel(List<AssemblyFile> assemblyFiles, List<PropDef> propDefs, Connection vaultConn)
+        private readonly BitmapImage _iptIcon;
+        private readonly BitmapImage _iamIcon;
+
+        public MainViewModel(List<AssemblyFile> assemblyFiles, List<PropDef> propDefs, Connection vaultConn, BitmapImage iptIcon, BitmapImage iamIcon)
         {
-            CloneListOfFiles(assemblyFiles);
+            //Stopwatch stopwatch = Stopwatch.StartNew();
+            CloneListOfFiles(assemblyFiles,ref _currentAssemblyFiles);
+            _iptIcon = iptIcon;
+            _iamIcon = iamIcon;
             _assemblyFiles = assemblyFiles;
             _vaultConn = vaultConn;
             PropertyDefinitions = propDefs;
@@ -43,47 +45,67 @@ namespace ChangeProperties
 
             SaveCommand = new RelayCommand(OnSave);
             ReloadCommand = new RelayCommand(OnRefresh);
+            //stopwatch.Stop();
+            //MessageBox.Show($"MainViewModel : {stopwatch.ElapsedMilliseconds} ms");
         }
 
-        public void CloneListOfFiles(List<AssemblyFile> assemblyFiles)
+        public void CloneListOfFiles(List<AssemblyFile> sourceList, ref List<AssemblyFile> targetList)
         {
-            _currentAssemblyFiles = assemblyFiles.Select(file => new AssemblyFile(file.File, file.VaultConn, file.PropDefs.Select(p => p).ToList())
-            { }).ToList();
+            targetList = sourceList.Select(file => new AssemblyFile(file.File, file.VaultConn, file.PropDefs.Select(p => p).ToList())
+            {
+                Properties = file.Properties.Select(prop => new FileProperty(prop)).ToList()
+            }).ToList();
         }
-
         private void OnSave()
         {
-            foreach(AssemblyFile assemblyFile in _assemblyFiles)
+            foreach (AssemblyFile assemblyFile in _assemblyFiles)
             {
-                if(assemblyFile.ChangedProperties.Count > 0) 
+
+                JobParam[] jobParams = new JobParam[assemblyFile.ChangedProperties.Count + 1];
+
+                jobParams[0] = new JobParam()
                 {
-                    UpdateFileProperties(assemblyFile.File, assemblyFile.ChangedProperties);
+                    Name = "FileId",
+                    Val = assemblyFile.File.Id.ToString()
+                };
+
+                int index = 1;
+                foreach (var property in assemblyFile.ChangedProperties)
+                {
+                    jobParams[index] = new JobParam()
+                    {
+                        Name = property.Key,  
+                        Val = property.Value.ToString()  
+                    };
+                    index++; 
+                }
+                if (assemblyFile.ChangedProperties.Count > 0)
+                {
+                    _vaultConn.WebServiceManager.JobService.AddJob("KRATKI.UpdateProperties", $"KRATKI.UpdateProperties: {assemblyFile.File.Name}", jobParams, 10);
                 }
                 assemblyFile.ChangedProperties.Clear();
             }
-            System.Windows.MessageBox.Show("Zapisano");
-            
-            CloneListOfFiles(_assemblyFiles);
+            System.Windows.MessageBox.Show("Pomyślnie zmieniono właściwości. Job processor wykonuje zadania...","Zapis",System.Windows.MessageBoxButton.OK,System.Windows.MessageBoxImage.Information);
+
+            CloneListOfFiles(_assemblyFiles, ref _currentAssemblyFiles); 
 
         }
         private void OnRefresh()
         {
-            _assemblyFiles = _currentAssemblyFiles;
+            CloneListOfFiles(_currentAssemblyFiles,ref _assemblyFiles);
             ConvertToDynamicRows();
-            CloneListOfFiles(_assemblyFiles);
-            
         }
 
-        private void UpdateFileProperties(File file, Dictionary<ACW.PropDef, object> mPropDictonary)
+        private void UpdateFileProperties(ACW.File file, Dictionary<ACW.PropDef, object> mPropDictonary)
         {
             ACET.IExplorerUtil mExplUtil = ExplorerLoader.LoadExplorerUtil(
             _vaultConn.Server, _vaultConn.Vault, _vaultConn.UserID, _vaultConn.Ticket);
    
             mExplUtil.UpdateFileProperties(file, mPropDictonary);
-            
         }
         private void ConvertToDynamicRows()
         {
+
             Rows.Clear();
             foreach (var file in _assemblyFiles)
             {
@@ -92,9 +114,23 @@ namespace ChangeProperties
                 row["AssemblyFile"] = file;
                 row["Nazwa Części"] = file.File.Name;
 
+                string fileExtension = Path.GetExtension(file.File.Name).ToLower();
+                BitmapImage icon = null;
+
+
+                if (fileExtension == ".ipt")
+                {
+                    icon = _iptIcon;
+                }
+                else if (fileExtension == ".iam")
+                {
+                    icon = _iamIcon; 
+                }
+
+                row["FileIcon"] = icon;
+
                 foreach (var propDef in PropertyDefinitions)
                 {
-                    //var displayName = propDef.DispName.Contains("/") ? propDef.DispName.Replace("/", "lub") : propDef.DispName;
                     var displayName = Regex.Replace(propDef.DispName, @"[/\[\]]", match => match.Value == "/" ? "lub" : " ").TrimEnd();
 
                     var property = file.Properties.FirstOrDefault(p => p.Name == displayName);
@@ -107,8 +143,6 @@ namespace ChangeProperties
 
         public void UpdateProperty(dynamic row, string propertyName, object newValue)
         {
-            
-            //var modifiedPropertyName = propertyName.Contains("/") ? propertyName.Replace("/", "lub") : propertyName;
             var modifiedPropertyName = Regex.Replace(propertyName, @"[/\[\]]", match => match.Value == "/" ? "lub" : " ").TrimEnd();
             var assemblyFile = row.AssemblyFile as AssemblyFile;
 
@@ -118,14 +152,25 @@ namespace ChangeProperties
 
                 if (fileProperty != null)
                 {
-                    fileProperty.Value = newValue;
-                    if (assemblyFile.ChangedProperties.ContainsKey(fileProperty.PropertyDef))
+                    string propertySysName = fileProperty.PropertyDef.SysName.ToString();
+                    object primaryValue = assemblyFile.PrimaryProperties[fileProperty.Name];
+                    if (!newValue.Equals(primaryValue))
                     {
-                        assemblyFile.ChangedProperties[fileProperty.PropertyDef] = newValue;
+                        if (assemblyFile.ChangedProperties.ContainsKey(propertySysName))
+                        {
+                            assemblyFile.ChangedProperties[propertySysName] = newValue.ToString();
+                        }
+                        else
+                        {
+                            assemblyFile.ChangedProperties.Add(propertySysName, newValue.ToString());
+                        }
                     }
                     else
                     {
-                        assemblyFile.ChangedProperties.Add(fileProperty.PropertyDef, newValue);
+                        if (assemblyFile.ChangedProperties.ContainsKey(propertySysName))
+                        {
+                            assemblyFile.ChangedProperties.Remove(propertySysName);
+                        }
                     }
                 }
             }

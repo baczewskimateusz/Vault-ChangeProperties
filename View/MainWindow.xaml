@@ -2,7 +2,26 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Zmiana właściwości" Height="600" Width="1000">
+    <Window.Resources>
+        <BitmapImage x:Key="IptIcon" UriSource="Images/ipt.png"/>
+        <BitmapImage x:Key="IamIcon" UriSource="Images/iam.png"/>
+
+        
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style TargetType="DataGridCell">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+        
+    </Window.Resources>
     <Grid>
+        
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
@@ -14,14 +33,14 @@
                   VerticalAlignment="Stretch" 
                   CanUserAddRows="False" 
                   CanUserDeleteRows="False"
-                  FrozenColumnCount="1" 
+                  EnableRowVirtualization="False" 
+                  FrozenColumnCount="2" 
                   ItemsSource="{Binding Rows}"
                   CellEditEnding="OnCellEditEnding"
                   SelectionUnit="Cell"
                   Grid.Row="0">
         </DataGrid>
         
-
         <StackPanel Orientation="Horizontal" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Center">
             <Button Content="Zapisz" 
                 Height="30" 

@@ -2,12 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Xml.Linq;
 using Autodesk.Connectivity.Explorer.Extensibility;
 using Autodesk.Connectivity.Extensibility.Framework;
 using Autodesk.Connectivity.WebServices;
 using Autodesk.DataManagement.Client.Framework.Vault.Currency.Connections;
-using Autodesk.DataManagement.Client.Framework.Vault.Currency.Properties;
 using ACW = Autodesk.Connectivity.WebServices;
 
 [assembly: ApiVersion("15.0")]
@@ -15,6 +17,7 @@ using ACW = Autodesk.Connectivity.WebServices;
 
 namespace ChangeProperties
 {
+   
     public class ChangePropertiesCommandExtension : IExplorerExtension
     {
        
@@ -98,27 +101,53 @@ namespace ChangeProperties
             {
                 allFiles = selectionFiles.ToList();
             }
-            
-            allFiles = allFiles.GroupBy(file => file.Id).Select(group => group.First()).ToList();
-            #endregion
 
+            allFiles = allFiles.GroupBy(file => file.Id).Select(group => group.First()).ToList();
+
+            #endregion
+           
             #region Lista w³asciwosci dla wszytkich plików
             List<PropDef> propList = CreatePropertyList(vaultConn, propDefs, allFiles);
             #endregion
-
+          
             #region tworzenie listy plikow AssemblyFile
             List<AssemblyFile> assemblyFiles = new List<AssemblyFile>();
 
+            Stopwatch stopwatch = Stopwatch.StartNew();
             foreach (var file in allFiles)
             {
                 assemblyFiles.Add(new AssemblyFile(file, vaultConn, propList));
             }
+            stopwatch.Stop();
+            MessageBox.Show($"Allfiles : {stopwatch.ElapsedMilliseconds} ms");
             #endregion
 
             #region Wyœwietlenie Okna WPF
-            //// Tworzenie i wyœwietlanie okna
+
+            //MainWindow mainWindow = new MainWindow(assemblyFiles, propList, vaultConn);
+            //mainWindow.Show();
+
+
+            //LoadingWindow loadingWindow = null;
+            //Thread progressThread = new Thread(() =>
+            //{
+            //    loadingWindow = new LoadingWindow();
+            //    loadingWindow.Show();
+            //    System.Windows.Threading.Dispatcher.Run();
+            //});
+
+            //progressThread.SetApartmentState(ApartmentState.STA);
+            //progressThread.IsBackground = false;
+            //progressThread.Start();
+
             MainWindow mainWindow = new MainWindow(assemblyFiles, propList, vaultConn);
+
+            //if (loadingWindow != null)
+            //{
+            //    loadingWindow.Dispatcher.Invoke(() => loadingWindow.Close());
+            //}
             mainWindow.ShowDialog();
+
             #endregion
         }
         public void Refresh_ItemLinks(Item editItem, Connection vaultConn)

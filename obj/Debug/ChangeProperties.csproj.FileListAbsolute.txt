@@ -24,3 +24,5 @@ C:\Users\m.baczewski\Desktop\ChangeProperties\obj\Debug\ChangeProperties.csproj.
 C:\Users\m.baczewski\Desktop\ChangeProperties\obj\Debug\ChangeProperties.csproj.CopyComplete
 C:\Users\m.baczewski\Desktop\ChangeProperties\obj\Debug\ChangeProperties.dll
 C:\Users\m.baczewski\Desktop\ChangeProperties\obj\Debug\ChangeProperties.pdb
+C:\Users\m.baczewski\Desktop\Vault Addin\ChangeProperties\obj\Debug\View\LoadingWindow.baml
+C:\Users\m.baczewski\Desktop\Vault Addin\ChangeProperties\obj\Debug\View\LoadingWindow.g.cs

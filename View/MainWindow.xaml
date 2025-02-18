@@ -33,25 +33,19 @@
                   VerticalAlignment="Stretch" 
                   CanUserAddRows="False" 
                   CanUserDeleteRows="False"
-                  EnableRowVirtualization="False" 
                   FrozenColumnCount="2" 
                   ItemsSource="{Binding Rows}"
                   CellEditEnding="OnCellEditEnding"
                   SelectionUnit="Cell"
-                  Grid.Row="0">
+                  Grid.Row="0"
+                  PreviewMouseDown="DynamicDataGridPreviewMouseDown">
         </DataGrid>
-        
         <StackPanel Orientation="Horizontal" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Center">
             <Button Content="Zapisz" 
                 Height="30" 
                 Width="100"
                 Margin="5" 
                 Command="{Binding SaveCommand}"/>
-            <Button Content="Odśwież" 
-                Height="30" 
-                Width="100"
-                Margin="5" 
-                Command="{Binding ReloadCommand}"/>
         </StackPanel>
 
     </Grid>

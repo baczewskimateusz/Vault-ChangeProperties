@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using Autodesk.Connectivity.WebServices;
 using Autodesk.DataManagement.Client.Framework.Vault.Currency.Connections;
 
@@ -16,29 +17,22 @@ namespace ChangeProperties
         public Dictionary<string, object> PrimaryProperties { get; set; } = new Dictionary<string, object>();
         public List<PropDef> PropDefs { get; set; }
 
-        public AssemblyFile(File file, Connection vaultConn, List<PropDef> propDefs)
+        public AssemblyFile(File file, Connection vaultConn, List<PropDef> propDefs, Dictionary<long, string> propDefsDictionary, Dictionary<long, PropDef> propDefsIdDict)
         {
             File = file;
             VaultConn = vaultConn;
             PropDefs = propDefs;
-            CreatePropertiesList(PropDefs);
+            CreatePropertiesList(propDefsDictionary, propDefsIdDict);
         }
-        public void CreatePropertiesList(List<PropDef> propDefs)
+        public void CreatePropertiesList(Dictionary<long, string> propDefsDictionary, Dictionary<long, PropDef> propDefsIdDict)
         {
-            PropInst[] fileProperties = VaultConn.WebServiceManager.PropertyService.GetPropertiesByEntityIds("FILE", new long[] { File.Id });
+            PropInst[] itemProperties = VaultConn.WebServiceManager.PropertyService.GetPropertiesByEntityIds("ITEM", new long[] { File.Id });
 
-            Dictionary<long, string> propDefsDictionary = propDefs
-                .ToDictionary(
-                    p => p.Id,
-                    p => Regex.Replace(p.DispName, @"[/\[\]]", match => match.Value == "/" ? "lub" : " ").TrimEnd()
-                );
-            Dictionary<long, PropDef> propDefsIdDict = propDefs.ToDictionary(p => p.Id, p => p);
-
-            fileProperties = fileProperties
+            itemProperties = itemProperties
                 .Where(prop => propDefsDictionary.ContainsKey(prop.PropDefId))
                 .ToArray();
 
-            foreach (PropInst propInst in fileProperties)
+            foreach (PropInst propInst in itemProperties)
             {
                 propDefsIdDict.TryGetValue(propInst.PropDefId, out PropDef propertyDef);
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -23,22 +24,22 @@ namespace ChangeProperties
        
         public IEnumerable<CommandSite> CommandSites()
         {
-            CommandSite fileContextCmdSite = new CommandSite("ChangePropertiesCommand.FileContextMenu", "Zmiana w³aœciwoœci")
+            CommandSite fileContextCmdSite = new CommandSite("ChangePropertiesCommand.FileContextMenu", "Zmiana w³aœciwoœci itemu")
             {
                 Location = CommandSiteLocation.FileContextMenu,
                 DeployAsPulldownMenu = true
             };
 
-            CommandItem changePropertiesCmdItemIam = new CommandItem("ChangePropertiesCommandIam", "Wszystkie pliki")
+            CommandItem changePropertiesCmdItemIam = new CommandItem("ChangePropertiesCommandIam", "Itemy wszystkich plików")
             {
                 NavigationTypes = new SelectionTypeId[] { SelectionTypeId.File, SelectionTypeId.FileVersion },
-                MultiSelectEnabled = false
+                MultiSelectEnabled = false,
             };
 
-            CommandItem changePropertiesCmdItemMultiple = new CommandItem("ChangePropertiesCommandIpt", "Zaznaczone pliki")
+            CommandItem changePropertiesCmdItemMultiple = new CommandItem("ChangePropertiesCommandIpt", "Itemy zaznaczonych plików")
             {
                 NavigationTypes = new SelectionTypeId[] { SelectionTypeId.File, SelectionTypeId.FileVersion },
-                MultiSelectEnabled = true
+                MultiSelectEnabled = true,
             };
 
             fileContextCmdSite.AddCommand(changePropertiesCmdItemIam);
@@ -59,15 +60,27 @@ namespace ChangeProperties
 
             #region Lista Wszystkich W³aœciwoœci Wraz z Nazwami
 
-            ACW.PropDef[] propDefs = vaultConn.WebServiceManager.PropertyService.GetPropertyDefinitionsByEntityClassId("FILE");
+            ACW.PropDef[] propDefsItem = vaultConn.WebServiceManager.PropertyService.GetPropertyDefinitionsByEntityClassId("ITEM").Where(n => n.IsAct == true && !n.IsSys).ToArray();
 
-            CommandItem commandItem = (CommandItem)sender;
+            
             #endregion
 
-            #region Wyszukiwanie Powi¹zanych Plików
+            List<string> propDefName = new List<string>();
+            var propDefsItemIds = new HashSet<long>(propDefsItem.Select(p => p.Id));
 
+
+            foreach (PropDef propDef in propDefsItem)
+            {
+                if (!propDefsItemIds.Contains(propDef.Id))
+                {
+                    propDefName.Add(propDef.DispName);
+                }
+            }
+
+            #region Wyszukiwanie Powi¹zanych Plików
+            CommandItem commandItem = (CommandItem)sender;
             List<File> allFiles = new List<File>();
-            if (commandItem.Label == "Wszystkie pliki")
+            if (commandItem.Label == "Itemy wszystkich plików")
             {
                 FileAssocLite[] associationFiles = vaultConn.WebServiceManager.DocumentService.GetFileAssociationLitesByIds(
                 new long[] { selectionFiles[0].Id },
@@ -87,143 +100,129 @@ namespace ChangeProperties
 
                 File[] assocFilesArray = vaultConn.WebServiceManager.DocumentService.GetFilesByIds(assocDirectFiles);
 
-                if (selectionFiles[0].Locked == false) allFiles.Add(selectionFiles[0]);
+                allFiles.Add(selectionFiles[0]);
 
                 foreach (File file in assocFilesArray)
                 {
-                    if (!allFiles.Contains(file))
+                    if (!allFiles.Any(f => f.Name == file.Name))
                     {
                         allFiles.Add(file);
                     }
                 }
             }
             else
+
             {
                 allFiles = selectionFiles.ToList();
             }
 
-            allFiles = allFiles.GroupBy(file => file.Id).Select(group => group.First()).ToList();
 
+            Dictionary<File, Item> filesItems = GetItems(allFiles, vaultConn);
+
+            List<Item> items = filesItems.Values.ToList();
+            List<File> files = filesItems.Keys.ToList();
+
+                        
             #endregion
-           
+
             #region Lista w³asciwosci dla wszytkich plików
-            List<PropDef> propList = CreatePropertyList(vaultConn, propDefs, allFiles);
+            List <PropDef> propList = CreatePropertyList(vaultConn, propDefsItem, items);
             #endregion
-          
+      
             #region tworzenie listy plikow AssemblyFile
             List<AssemblyFile> assemblyFiles = new List<AssemblyFile>();
 
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            foreach (var file in allFiles)
+            Dictionary<long, string> propDefsDictionary = propDefsItem
+               .ToDictionary(
+                   p => p.Id,
+                   p => Regex.Replace(p.DispName, @"[/\[\]]|kg/m", match =>
+                                match.Value == "/" ? "lub" : (match.Value == "kg/m" ? "kg na m" : " ")
+                            ).Trim()
+               );
+            Dictionary<long, PropDef> propDefsIdDict = propDefsItem.ToDictionary(p => p.Id, p => p);
+
+            //Stopwatch stopwatch = Stopwatch.StartNew();
+            Parallel.ForEach(files, file =>
             {
-                assemblyFiles.Add(new AssemblyFile(file, vaultConn, propList));
-            }
-            stopwatch.Stop();
-            MessageBox.Show($"Allfiles : {stopwatch.ElapsedMilliseconds} ms");
+                var assemblyFile = new AssemblyFile(file, vaultConn, propList, propDefsDictionary, propDefsIdDict);
+                lock (assemblyFiles) { assemblyFiles.Add(assemblyFile); }
+            });
+            //stopwatch.Stop();
+            //MessageBox.Show($"Allfiles : {stopwatch.ElapsedMilliseconds} ms");
             #endregion
 
             #region Wyœwietlenie Okna WPF
 
-            //MainWindow mainWindow = new MainWindow(assemblyFiles, propList, vaultConn);
-            //mainWindow.Show();
-
-
-            //LoadingWindow loadingWindow = null;
-            //Thread progressThread = new Thread(() =>
-            //{
-            //    loadingWindow = new LoadingWindow();
-            //    loadingWindow.Show();
-            //    System.Windows.Threading.Dispatcher.Run();
-            //});
-
-            //progressThread.SetApartmentState(ApartmentState.STA);
-            //progressThread.IsBackground = false;
-            //progressThread.Start();
-
             MainWindow mainWindow = new MainWindow(assemblyFiles, propList, vaultConn);
-
-            //if (loadingWindow != null)
-            //{
-            //    loadingWindow.Dispatcher.Invoke(() => loadingWindow.Close());
-            //}
             mainWindow.ShowDialog();
 
             #endregion
         }
-        public void Refresh_ItemLinks(Item editItem, Connection vaultConn)
+
+        public Dictionary<File,Item> GetItems(List<File> files, Connection vaultConnection)
         {
-            var linkTypeOptions = ItemFileLnkTypOpt.Primary
-                | ItemFileLnkTypOpt.PrimarySub
-                | ItemFileLnkTypOpt.Secondary
-                | ItemFileLnkTypOpt.SecondarySub
-                | ItemFileLnkTypOpt.StandardComponent
-                | ItemFileLnkTypOpt.Tertiary;
-            var assocs = vaultConn.WebServiceManager.ItemService.GetItemFileAssociationsByItemIds(
-                new long[] { editItem.Id }, linkTypeOptions);
-            vaultConn.WebServiceManager.ItemService.AddFilesToPromote(
-                assocs.Select(x => x.CldFileId).ToArray(), ItemAssignAll.No, true);
-            var promoteOrderResults = vaultConn.WebServiceManager.ItemService.GetPromoteComponentOrder(out DateTime timeStamp);
-            if (promoteOrderResults.PrimaryArray != null
-                && promoteOrderResults.PrimaryArray.Any())
+            Dictionary<File, Item> filesItems = new Dictionary<File, Item>();
+            foreach (File file in files)
             {
-                vaultConn.WebServiceManager.ItemService.PromoteComponents(timeStamp, promoteOrderResults.PrimaryArray);
+                try
+                {
+                    Item item = vaultConnection.WebServiceManager.ItemService.GetItemsByFileId(file.Id).First();
+                    filesItems.Add(file, item);
+                }
+                catch{}
             }
-            if (promoteOrderResults.NonPrimaryArray != null
-                && promoteOrderResults.NonPrimaryArray.Any())
-            {
-                vaultConn.WebServiceManager.ItemService.PromoteComponentLinks(promoteOrderResults.NonPrimaryArray);
-            }
-            var promoteResult = vaultConn.WebServiceManager.ItemService.GetPromoteComponentsResults(timeStamp);
+
+            return filesItems;   
         }
-        public List<PropDef> CreatePropertyList(Connection vaultConn, PropDef[] propDefs, List<File> allFiles)
+        public List<PropDef> CreatePropertyList(Connection vaultConn, PropDef[] propDefs, List<Item> allItems)
         {
-            bool assemblyFileProcessed = false;
-            bool weldedFileProcessed = false;
-            bool partFileProcessed = false;
-            bool sheetmetalFileProcessed = false;
+            bool assemblyItemProcessed = false;
+            bool weldedItemProcessed = false;
+            bool partItemProcessed = false;
+            bool sheetmetalItemProcessed = false;
 
-            HashSet<PropDef> fileUserProperties = new HashSet<PropDef>();
-
-            foreach (File oFile in allFiles)
+            HashSet<PropDef> itemUserProperties = new HashSet<PropDef>();
+           
+            foreach (Item oItem in allItems)
             {
-                string catName = oFile.Cat.CatName;
-                if (assemblyFileProcessed && weldedFileProcessed && partFileProcessed && sheetmetalFileProcessed)
+                string itemCatName = oItem.Cat.CatName;
+                if (assemblyItemProcessed && weldedItemProcessed && partItemProcessed && sheetmetalItemProcessed)
                 {
                     break;
                 }
-                if (catName == "Zespó³" && !assemblyFileProcessed)
+                if (itemCatName == "Zespó³" && !assemblyItemProcessed)
                 {
-                    assemblyFileProcessed = true;
+                    assemblyItemProcessed = true;
                 }
-                else if (catName == "Czêœæ" && !partFileProcessed)
+                else if (itemCatName == "Czêœæ" && !partItemProcessed)
                 {
-                    partFileProcessed = true;
+                    partItemProcessed = true;
                 }
-                else if (catName == "Zespó³ spawany" && !weldedFileProcessed)
+                else if (itemCatName == "Zespó³ spawany" && !weldedItemProcessed)
                 {
-                    weldedFileProcessed = true;
+                    weldedItemProcessed = true;
                 }
-                else if (catName == "Blacha" && !sheetmetalFileProcessed)
+                else if (itemCatName == "Blacha" && !sheetmetalItemProcessed)
                 {
-                    sheetmetalFileProcessed = true;
+                    sheetmetalItemProcessed = true;
                 }
                 else
                 {
                     continue;
                 }
+                ACW.PropInst[] itemProperties = vaultConn.WebServiceManager.PropertyService.GetPropertiesByEntityIds("ITEM", new long[] { oItem.Id });
 
-                ACW.PropInst[] fileProperties = vaultConn.WebServiceManager.PropertyService.GetPropertiesByEntityIds("FILE", new long[] { oFile.Id });
+                var currentItemProperties = propDefs
+                    .Where(prop => itemProperties.Any(p => p.PropDefId == prop.Id));
 
-                var currentFileProperties = propDefs
-                    .Where(prop => fileProperties.Any(p => p.PropDefId == prop.Id) && !prop.IsSys);
-
-                foreach (var property in currentFileProperties)
+                foreach (var property in currentItemProperties)
                 {
-                    fileUserProperties.Add(property);
+                    itemUserProperties.Add(property);
                 }
             }
 
-            return fileUserProperties.OrderBy(p => p.DispName).ToList();
+            return itemUserProperties.OrderBy(p => p.DispName).ToList();
+
         }
 
         public IEnumerable<CustomEntityHandler> CustomEntityHandlers()

@@ -21,6 +21,7 @@ namespace ChangeProperties
     {
         private MainViewModel viewModel;
         private Connection _vaultConn;
+        private Dictionary<object, object> _oldValues = new Dictionary<object, object>();
         public MainWindow(List<AssemblyFile> assemblyFiles, List<PropDef> propDefs, Connection vaultConn)
         {
             InitializeComponent();
@@ -32,19 +33,8 @@ namespace ChangeProperties
 
             
             CreateColumn(propDefs);
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            //stopwatch.Stop();
-            //MessageBox.Show($"Create column : {stopwatch.ElapsedMilliseconds} ms");
-
-            //stopwatch.Restart();
             viewModel = new MainViewModel(assemblyFiles, propDefs, vaultConn, iptIcon, iamIcon);
-            
-
             DataContext = viewModel;
-            stopwatch.Stop();
-            MessageBox.Show($"MainViewModel : {stopwatch.ElapsedMilliseconds} ms");
-
-
         }
 
         private void OnCellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
@@ -65,7 +55,7 @@ namespace ChangeProperties
 
             if (row is IDictionary<string, object> expando)
             {
-                expando.TryGetValue(propertyName, out oldValue);  
+                expando.TryGetValue(propertyName, out oldValue);
             }
             else
             {
@@ -78,12 +68,12 @@ namespace ChangeProperties
 
             if (e.EditingElement is TextBox textBox)
             {
-                
+
 
                 if (float.TryParse(textBox.Text, NumberStyles.Float, CultureInfo.CurrentCulture, out float numericValue) ||
                     float.TryParse(textBox.Text.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out numericValue))
                 {
-                    
+
                     newValue = numericValue;
                 }
                 else
@@ -100,19 +90,54 @@ namespace ChangeProperties
                 newValue = checkBox.IsChecked;
             }
 
-            if (oldValue != null)
-            {
-                oldValue = oldValue.ToString();
-                newValue = newValue.ToString();
-            }
+            //if (oldValue != null)
+            //{
+            //    string oldStr = oldValue?.ToString() ?? String.Empty;
+            //    string newStr = newValue?.ToString() ?? String.Empty;
+            //}
 
-            if ((oldValue == null && newValue != null && newValue!="") || (oldValue != null && !oldValue.Equals(newValue)))
+            if ((oldValue == null && newValue != null && newValue != "") || (oldValue != null && !oldValue.Equals(newValue)))
             {
-                expando[propertyName] = newValue;  
+                expando[propertyName] = newValue;
 
                 viewModel.UpdateProperty(row, propertyName, newValue);
             }
         }
+
+
+        //private void OnCellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+        //{
+        //    if (e.Column is DataGridBoundColumn boundColumn &&
+        //        boundColumn.Binding is Binding binding &&
+        //        e.Row.Item is IDictionary<string, object> expando)
+        //    {
+        //        string propertyName = binding.Path?.Path;
+        //        if (string.IsNullOrEmpty(propertyName)) return;
+
+        //        object newValue = null;
+
+        //        if (e.EditingElement is TextBox textBox)
+        //        {
+        //            string input = textBox.Text.Replace(',', '.');
+
+        //            if (double.TryParse(input, NumberStyles.Float, CultureInfo.InvariantCulture, out double numericValue))
+        //            {
+        //                newValue = numericValue;
+        //            }
+        //            else
+        //            {
+        //                newValue = textBox.Text; 
+        //            }
+        //        }
+
+        //        if (newValue != null && expando.TryGetValue(propertyName, out object oldValue) && !Equals(oldValue, newValue))
+        //        {
+        //            expando[propertyName] = newValue;
+        //            viewModel.UpdateProperty(expando, propertyName, newValue);
+        //        }
+        //    }
+        //}
+
 
         private void ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -148,6 +173,7 @@ namespace ChangeProperties
 
         public void CreateColumn(List<PropDef> propDefs)
         {
+            DynamicDataGrid.EnableRowVirtualization = false;
             DataGridTemplateColumn iconColumn = new DataGridTemplateColumn
             {
                 Header = "Ikona",
@@ -199,7 +225,9 @@ namespace ChangeProperties
                 string propName = propDef.DispName;
                 if (Regex.IsMatch(propName, @"[/\[\]]"))
                 {
-                    propName = Regex.Replace(propName, @"[/\[\]]", match => match.Value == "/" ? "lub" : " ").TrimEnd();
+                    propName = Regex.Replace(propDef.DispName, @"[/\[\]]|kg/m", match =>
+                                    match.Value == "/" ? "lub" : (match.Value == "kg/m" ? "kg na m" : " ")
+                                ).Trim();
                 }
 
                 types.Add(propName, propDef.Typ);
@@ -270,6 +298,8 @@ namespace ChangeProperties
                             EditingElementStyle = numericTextBoxStyle,
                             IsReadOnly = readOnlyColumn
                         };
+
+                        
                         break;
 
                     case DataType.DateTime:
@@ -281,6 +311,7 @@ namespace ChangeProperties
                             Width = new DataGridLength(1, DataGridLengthUnitType.Auto),
                             IsReadOnly = readOnlyColumn
                         };
+
                         break;
                     case DataType.String:
                     default:
@@ -333,39 +364,44 @@ namespace ChangeProperties
 
         private void NumericOnly_PreviewTextInput(object sender, TextCompositionEventArgs e)
         {
-            TextBox textBox = sender as TextBox;
-
-            if (!IsValidNumericInput(textBox, e.Text))
-            {
-                e.Handled = true;
-            }
+            e.Handled = !Regex.IsMatch(e.Text, @"^[0-9]*(?:[.,][0-9]*)?$");
         }
 
-        private bool IsValidNumericInput(TextBox textBox, string newText)
+        private void DynamicDataGridPreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
-            if (newText.All(char.IsDigit) ||
-                (newText == "," && !textBox.Text.Contains(",")) ||
-                (newText == "." && !textBox.Text.Contains(".")))
+            if (e.OriginalSource is DependencyObject depObj)
             {
-                return true;
+                DataGridCell cell = FindParent<DataGridCell>(depObj);
+                if (cell != null && !cell.IsEditing)
+                {
+                    DataGrid dataGrid = sender as DataGrid;
+                    if (dataGrid != null && !cell.IsReadOnly)
+                    {
+                        if (!cell.IsFocused)
+                        {
+                            cell.Focus();
+                        }
+                        dataGrid.BeginEdit();
+                        e.Handled = true;
+                    }
+                }
             }
-            return false;
         }
 
         private bool IsTwoDirectionMapping(PropDef propDef)
         {
-            PropDefInfo propDefInfo = _vaultConn.WebServiceManager.PropertyService.GetPropertyDefinitionInfosByEntityClassId("FILE", new long[] { propDef.Id }).First();
 
+            PropDefInfo propDefInfo = _vaultConn.WebServiceManager.PropertyService.GetPropertyDefinitionInfosByEntityClassId("ITEM", new long[] { propDef.Id }).First();
+            MappingDirection mappingDirection;
             if (propDefInfo.EntClassCtntSrcPropCfgArray != null)
             {
-                EntClassCtntSrcPropCfg ctntSrcPropCfg = propDefInfo.EntClassCtntSrcPropCfgArray.Where(p => p.EntClassId == "FILE").First();
-
-                Autodesk.Connectivity.WebServices.MappingDirection[] mappingDirections = ctntSrcPropCfg.MapDirectionArray;
-
-                foreach (Autodesk.Connectivity.WebServices.MappingDirection mappingDirection in mappingDirections)
+                EntClassCtntSrcPropCfg ent = propDefInfo.EntClassCtntSrcPropCfgArray.Where(n => n.EntClassId == "ITEM").FirstOrDefault();
+                
+                if(ent != null)
                 {
-                    if (mappingDirection == Autodesk.Connectivity.WebServices.MappingDirection.Write) return true;
-                }
+                    mappingDirection = ent.MapDirectionArray.First();
+                    if (mappingDirection == MappingDirection.Write) return true;
+                } 
                 return false;
             }
             return true;

@@ -34,8 +34,7 @@ namespace ChangeProperties
 
         public MainViewModel(List<AssemblyFile> assemblyFiles, List<PropDef> propDefs, Connection vaultConn, BitmapImage iptIcon, BitmapImage iamIcon)
         {
-            //Stopwatch stopwatch = Stopwatch.StartNew();
-            CloneListOfFiles(assemblyFiles,ref _currentAssemblyFiles);
+
             _iptIcon = iptIcon;
             _iamIcon = iamIcon;
             _assemblyFiles = assemblyFiles;
@@ -45,17 +44,8 @@ namespace ChangeProperties
 
             SaveCommand = new RelayCommand(OnSave);
             ReloadCommand = new RelayCommand(OnRefresh);
-            //stopwatch.Stop();
-            //MessageBox.Show($"MainViewModel : {stopwatch.ElapsedMilliseconds} ms");
         }
 
-        public void CloneListOfFiles(List<AssemblyFile> sourceList, ref List<AssemblyFile> targetList)
-        {
-            targetList = sourceList.Select(file => new AssemblyFile(file.File, file.VaultConn, file.PropDefs.Select(p => p).ToList())
-            {
-                Properties = file.Properties.Select(prop => new FileProperty(prop)).ToList()
-            }).ToList();
-        }
         private void OnSave()
         {
             foreach (AssemblyFile assemblyFile in _assemblyFiles)
@@ -74,25 +64,21 @@ namespace ChangeProperties
                 {
                     jobParams[index] = new JobParam()
                     {
-                        Name = property.Key,  
-                        Val = property.Value.ToString()  
+                        Name = property.Key,
+                        Val = property.Value.ToString()
                     };
-                    index++; 
+                    index++;
                 }
                 if (assemblyFile.ChangedProperties.Count > 0)
                 {
-                    _vaultConn.WebServiceManager.JobService.AddJob("KRATKI.UpdateProperties", $"KRATKI.UpdateProperties: {assemblyFile.File.Name}", jobParams, 10);
+                    _vaultConn.WebServiceManager.JobService.AddJob("KRATKI.UpdateProperties", $"KRATKI.UpdateProperties: {assemblyFile.File.Name}", jobParams, 1);
                 }
                 assemblyFile.ChangedProperties.Clear();
             }
-            System.Windows.MessageBox.Show("Pomyślnie zmieniono właściwości. Job processor wykonuje zadania...","Zapis",System.Windows.MessageBoxButton.OK,System.Windows.MessageBoxImage.Information);
-
-            CloneListOfFiles(_assemblyFiles, ref _currentAssemblyFiles); 
-
+            System.Windows.MessageBox.Show("Pomyślnie zmieniono właściwości. Job processor wykonuje zadania...", "Zapis", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
         }
         private void OnRefresh()
         {
-            CloneListOfFiles(_currentAssemblyFiles,ref _assemblyFiles);
             ConvertToDynamicRows();
         }
 
@@ -100,7 +86,7 @@ namespace ChangeProperties
         {
             ACET.IExplorerUtil mExplUtil = ExplorerLoader.LoadExplorerUtil(
             _vaultConn.Server, _vaultConn.Vault, _vaultConn.UserID, _vaultConn.Ticket);
-   
+
             mExplUtil.UpdateFileProperties(file, mPropDictonary);
         }
         private void ConvertToDynamicRows()
@@ -124,15 +110,16 @@ namespace ChangeProperties
                 }
                 else if (fileExtension == ".iam")
                 {
-                    icon = _iamIcon; 
+                    icon = _iamIcon;
                 }
 
                 row["FileIcon"] = icon;
 
                 foreach (var propDef in PropertyDefinitions)
                 {
-                    var displayName = Regex.Replace(propDef.DispName, @"[/\[\]]", match => match.Value == "/" ? "lub" : " ").TrimEnd();
-
+                    var displayName = Regex.Replace(propDef.DispName, @"[/\[\]]|kg/m", match =>
+                                            match.Value == "/" ? "lub" : (match.Value == "kg/m" ? "kg na m" : " ")
+                                        ).Trim();
                     var property = file.Properties.FirstOrDefault(p => p.Name == displayName);
                     row[displayName] = property != null ? property.Value : "";
                 }
@@ -143,7 +130,11 @@ namespace ChangeProperties
 
         public void UpdateProperty(dynamic row, string propertyName, object newValue)
         {
-            var modifiedPropertyName = Regex.Replace(propertyName, @"[/\[\]]", match => match.Value == "/" ? "lub" : " ").TrimEnd();
+            var modifiedPropertyName = Regex.Replace(propertyName, @"[/\[\]]|kg/m", match =>
+                                            match.Value == "/" ? "lub" : (match.Value == "kg/m" ? "kg na m" : " ")
+                                        ).Trim(); ;
+
+            //var modifiedPropertyName = Regex.Replace(propertyName, @"[/\[\]]", match => match.Value == "/" ? "lub" : " ").TrimEnd();
             var assemblyFile = row.AssemblyFile as AssemblyFile;
 
             if (assemblyFile != null)
@@ -153,6 +144,7 @@ namespace ChangeProperties
                 if (fileProperty != null)
                 {
                     string propertySysName = fileProperty.PropertyDef.SysName.ToString();
+                    
                     object primaryValue = assemblyFile.PrimaryProperties[fileProperty.Name];
                     if (!newValue.Equals(primaryValue))
                     {

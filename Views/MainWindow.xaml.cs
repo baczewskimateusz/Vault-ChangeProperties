@@ -4,6 +4,7 @@ using System.Data.Common;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Runtime;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
@@ -14,6 +15,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Autodesk.Connectivity.WebServices;
 using Autodesk.DataManagement.Client.Framework.Vault.Currency.Connections;
+using ChangeProperties.Models;
+using ChangeProperties.Services;
 
 namespace ChangeProperties
 {
@@ -22,6 +25,18 @@ namespace ChangeProperties
         private MainViewModel viewModel;
         private Connection _vaultConn;
         private Dictionary<object, object> _oldValues = new Dictionary<object, object>();
+
+        private string vendoUrl { get; set; }
+        private string vendoToken { get; set; }
+        private string vendoUserID { get; set; }
+        private string obrobkaCieplna { get; set; }
+        private string przygotowaniePow { get; set; }
+        private string obrobkaPow { get; set; }
+        private Dictionary<string, string> kolorWartosci { get;set; }
+        private string malarnia { get; set; }
+        private string kolor { get; set; }
+
+        Dictionary<string, List<string>> listBoxColumn;
         public MainWindow(List<AssemblyFile> assemblyFiles, List<PropDef> propDefs, Connection vaultConn)
         {
             InitializeComponent();
@@ -30,10 +45,12 @@ namespace ChangeProperties
             
             var iptIcon = (BitmapImage)Resources["IptIcon"];
             var iamIcon = (BitmapImage)Resources["IamIcon"];
+            GetSettings();
+            SetListBoxValues();
 
-            
+
             CreateColumn(propDefs);
-            viewModel = new MainViewModel(assemblyFiles, propDefs, vaultConn, iptIcon, iamIcon);
+            viewModel = new MainViewModel(assemblyFiles, propDefs, vaultConn, iptIcon, iamIcon, kolorWartosci);
             DataContext = viewModel;
         }
 
@@ -90,12 +107,6 @@ namespace ChangeProperties
                 newValue = checkBox.IsChecked;
             }
 
-            //if (oldValue != null)
-            //{
-            //    string oldStr = oldValue?.ToString() ?? String.Empty;
-            //    string newStr = newValue?.ToString() ?? String.Empty;
-            //}
-
             if ((oldValue == null && newValue != null && newValue != "") || (oldValue != null && !oldValue.Equals(newValue)))
             {
                 expando[propertyName] = newValue;
@@ -103,40 +114,6 @@ namespace ChangeProperties
                 viewModel.UpdateProperty(row, propertyName, newValue);
             }
         }
-
-
-        //private void OnCellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
-        //{
-        //    if (e.Column is DataGridBoundColumn boundColumn &&
-        //        boundColumn.Binding is Binding binding &&
-        //        e.Row.Item is IDictionary<string, object> expando)
-        //    {
-        //        string propertyName = binding.Path?.Path;
-        //        if (string.IsNullOrEmpty(propertyName)) return;
-
-        //        object newValue = null;
-
-        //        if (e.EditingElement is TextBox textBox)
-        //        {
-        //            string input = textBox.Text.Replace(',', '.');
-
-        //            if (double.TryParse(input, NumberStyles.Float, CultureInfo.InvariantCulture, out double numericValue))
-        //            {
-        //                newValue = numericValue;
-        //            }
-        //            else
-        //            {
-        //                newValue = textBox.Text; 
-        //            }
-        //        }
-
-        //        if (newValue != null && expando.TryGetValue(propertyName, out object oldValue) && !Equals(oldValue, newValue))
-        //        {
-        //            expando[propertyName] = newValue;
-        //            viewModel.UpdateProperty(expando, propertyName, newValue);
-        //        }
-        //    }
-        //}
 
 
         private void ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -171,6 +148,72 @@ namespace ChangeProperties
             return FindParent<T>(parentObject);
         }
 
+        public void GetSettings()
+        {
+            string xmlSet = _vaultConn.WebServiceManager.KnowledgeVaultService.GetVaultOption("ArkanceExportJobOptions");
+
+            Settings settings = Settings.readfromXML(xmlSet);
+
+            vendoUrl = settings.ERPURL;
+            vendoToken = settings.ERPToken;
+            vendoUserID = settings.ERPUser;
+            obrobkaCieplna = settings.slownikObrobkaCieplna;
+            przygotowaniePow = settings.slownikPrzygotowaniePow;
+            obrobkaPow = settings.slownikObrobkaPowierzchni;
+            malarnia = settings.slownikMalarnia;
+            kolor = settings.slowniKolor;
+        }
+
+        public void SetListBoxValues()
+        {
+            UserDictionaries userDictionaries = DictionaryService.getDictionariesList(vendoUrl, vendoToken, vendoUserID);
+
+            var names = new List<string>
+            {
+                obrobkaCieplna,
+                przygotowaniePow,
+                obrobkaPow,
+                malarnia,
+                kolor,
+                "Część Zamienna",
+                "Rodzaj zmatowienia",
+                "Rodzaj wykończenia"
+            };
+
+            var dictionaries = DictionaryService.GetDictionariesByName(names, userDictionaries);
+
+            Dictionary<string, string> obrobkaCieplnaWartosci = dictionaries[obrobkaCieplna];
+            Dictionary<string, string> przygotowaniePowWartosci = dictionaries[przygotowaniePow];
+            Dictionary<string, string> obrobkaPowWartosci = dictionaries[obrobkaPow];
+            Dictionary<string, string> malarniaWartosci = dictionaries[malarnia];
+            kolorWartosci = dictionaries[kolor];
+            Dictionary<string, string> czescZamiennaWartosci = dictionaries["Część Zamienna"];
+            Dictionary<string, string> rodzajZmatowieniaWartosci = dictionaries["Rodzaj zmatowienia"];
+            Dictionary<string, string> rodzajWykończeniaWartosc = dictionaries["Rodzaj wykończenia"];
+
+
+            List<string> obrobkaCieplnaList = obrobkaCieplnaWartosci.Keys.ToList();
+            List<string> przygotowaniePowList = przygotowaniePowWartosci.Keys.ToList();
+
+            List<string> kolorList = kolorWartosci
+            .Select(kvp => $"{kvp.Key} | {kvp.Value}")
+            .ToList();
+
+            obrobkaCieplnaList.Insert(0, "Brak");
+            przygotowaniePowList.Insert(0, "Brak");
+          
+            listBoxColumn = new Dictionary<string, List<string>>
+            {
+                { obrobkaCieplna.ToLower(), obrobkaCieplnaList },
+                { przygotowaniePow.ToLower(), przygotowaniePowList },
+                { obrobkaPow.ToLower(), new List<string>(obrobkaPowWartosci.Keys.ToList()) },
+                { malarnia.ToLower(), new List<string>(malarniaWartosci.Keys.ToList()) },
+                { "kolor", new List<string>(kolorList) },
+                { "część zamienna", new List<string>(czescZamiennaWartosci.Keys.ToList()) },
+                { "rodzaj zmatowienia", new List<string>(rodzajZmatowieniaWartosci.Keys.ToList()) },
+                { "rodzaj wykończenia", new List<string>(rodzajWykończeniaWartosc.Keys.ToList()) }
+            };
+        }
         public void CreateColumn(List<PropDef> propDefs)
         {
             DynamicDataGrid.EnableRowVirtualization = false;
@@ -298,8 +341,6 @@ namespace ChangeProperties
                             EditingElementStyle = numericTextBoxStyle,
                             IsReadOnly = readOnlyColumn
                         };
-
-                        
                         break;
 
                     case DataType.DateTime:
@@ -313,16 +354,102 @@ namespace ChangeProperties
                         };
 
                         break;
+                    //case DataType.String:
+                    //    default:
+                    //    if (listBoxColumn.ContainsKey(name.ToLower()))
+                    //    {
+                    //        var comboBoxFactory1 = new FrameworkElementFactory(typeof(ComboBox));
+                    //        comboBoxFactory1.SetValue(ComboBox.ItemsSourceProperty, listBoxColumn[name.ToLower()]);
+                    //        comboBoxFactory1.SetBinding(ComboBox.SelectedItemProperty, new Binding(name)
+                    //        {
+                    //            Mode = BindingMode.TwoWay,
+                    //            UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+                    //        });
+
+                    //        comboBoxFactory1.SetValue(ComboBox.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+                    //        comboBoxFactory1.SetValue(ComboBox.VerticalAlignmentProperty, VerticalAlignment.Center);
+                    //        comboBoxFactory1.AddHandler(ComboBox.SelectionChangedEvent, new SelectionChangedEventHandler(ComboBox_SelectionChanged));
+
+                    //        var comboBoxTemplate1 = new DataTemplate
+                    //        {
+                    //            VisualTree = comboBoxFactory1
+                    //        };
+
+                    //        dataGridColumn = new DataGridTemplateColumn
+                    //        {
+                    //            Header = name,
+                    //            CellTemplate = comboBoxTemplate1,
+                    //            CellEditingTemplate = comboBoxTemplate1,
+                    //            IsReadOnly = readOnlyColumn
+                    //        };
+                    //    }
+                    //    else
+                    //    {
+                    //        // Domyślna kolumna tekstowa dla pozostałych kolumn
+                    //        dataGridColumn = new DataGridTextColumn
+                    //        {
+                    //            Header = name,
+                    //            Binding = new Binding(name),
+                    //            Width = new DataGridLength(1, DataGridLengthUnitType.Auto),
+                    //            IsReadOnly = readOnlyColumn,
+                    //        };
+                    //    }
+                    //    break;
                     case DataType.String:
                     default:
-                        dataGridColumn = new DataGridTextColumn
+                        if (listBoxColumn.ContainsKey(name.ToLower()))
                         {
-                            Header = name,
-                            Binding = new Binding(name),
-                            Width = new DataGridLength(1, DataGridLengthUnitType.Auto),
-                            IsReadOnly = readOnlyColumn,
+                            
+                            var comboBoxFactory1 = new FrameworkElementFactory(typeof(ComboBox));
+                            comboBoxFactory1.SetValue(ComboBox.ItemsSourceProperty, listBoxColumn[name.ToLower()]);
+                            if (name.ToLower().Contains("kolor")) 
+                            {
+                                var converter = new RalColorConverter(kolorWartosci);
+                                comboBoxFactory1.SetBinding(ComboBox.SelectedItemProperty, new Binding(name)
+                                {
+                                    Mode = BindingMode.TwoWay,
+                                    UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
+                                    Converter = converter
+                                });
+                            }
+                            else
+                            {
+                                comboBoxFactory1.SetBinding(ComboBox.SelectedItemProperty, new Binding(name)
+                                {
+                                    Mode = BindingMode.TwoWay,
+                                    UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+                                    // Bez konwertera dla innych kolumn
+                                });
+                            }
 
-                        };
+                            comboBoxFactory1.SetValue(ComboBox.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+                            comboBoxFactory1.SetValue(ComboBox.VerticalAlignmentProperty, VerticalAlignment.Center);
+                            comboBoxFactory1.AddHandler(ComboBox.SelectionChangedEvent, new SelectionChangedEventHandler(ComboBox_SelectionChanged));
+
+                            var comboBoxTemplate1 = new DataTemplate
+                            {
+                                VisualTree = comboBoxFactory1
+                            };
+
+                            dataGridColumn = new DataGridTemplateColumn
+                            {
+                                Header = name,
+                                CellTemplate = comboBoxTemplate1,
+                                CellEditingTemplate = comboBoxTemplate1,
+                                IsReadOnly = readOnlyColumn
+                            };
+                        }
+                        else
+                        {
+                            // Domyślna kolumna tekstowa dla pozostałych kolumn
+                            dataGridColumn = new DataGridTextColumn
+                            {
+                                Header = name,
+                                Binding = new Binding(name),
+                                Width = new DataGridLength(1, DataGridLengthUnitType.Auto),
+                                IsReadOnly = readOnlyColumn,
+                            };
+                        }
                         break;
                 }
                 DynamicDataGrid.Columns.Add(dataGridColumn);

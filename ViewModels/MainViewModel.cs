@@ -1,11 +1,9 @@
 ﻿using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using Autodesk.Connectivity.Explorer.ExtensibilityTools;
@@ -26,19 +24,21 @@ namespace ChangeProperties
         public List<PropDef> PropertyDefinitions { get; set; } = new List<PropDef>();
         public ICommand SaveCommand { get; set; }
         public ICommand ReloadCommand { get; set; }
+        private Dictionary<string, string> _kolorWartosci { get; set; }
 
         public event PropertyChangedEventHandler PropertyChanged;
 
         private readonly BitmapImage _iptIcon;
         private readonly BitmapImage _iamIcon;
 
-        public MainViewModel(List<AssemblyFile> assemblyFiles, List<PropDef> propDefs, Connection vaultConn, BitmapImage iptIcon, BitmapImage iamIcon)
+        public MainViewModel(List<AssemblyFile> assemblyFiles, List<PropDef> propDefs, Connection vaultConn, BitmapImage iptIcon, BitmapImage iamIcon, Dictionary<string, string> kolorWartosci)
         {
 
             _iptIcon = iptIcon;
             _iamIcon = iamIcon;
             _assemblyFiles = assemblyFiles;
             _vaultConn = vaultConn;
+            _kolorWartosci = kolorWartosci;
             PropertyDefinitions = propDefs;
             ConvertToDynamicRows();
 
@@ -48,9 +48,10 @@ namespace ChangeProperties
 
         private void OnSave()
         {
+            bool flag1=false;
             foreach (AssemblyFile assemblyFile in _assemblyFiles)
             {
-
+                
                 JobParam[] jobParams = new JobParam[assemblyFile.ChangedProperties.Count + 1];
 
                 jobParams[0] = new JobParam()
@@ -72,10 +73,19 @@ namespace ChangeProperties
                 if (assemblyFile.ChangedProperties.Count > 0)
                 {
                     _vaultConn.WebServiceManager.JobService.AddJob("KRATKI.UpdateProperties", $"KRATKI.UpdateProperties: {assemblyFile.File.Name}", jobParams, 1);
+                    flag1 = true;
                 }
                 assemblyFile.ChangedProperties.Clear();
             }
-            System.Windows.MessageBox.Show("Pomyślnie zmieniono właściwości. Job processor wykonuje zadania...", "Zapis", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+            if (flag1)
+            {
+                System.Windows.MessageBox.Show("Zmiana właściwości została wysłana do kolejki zadań.", "Wysłanie zadań", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+            }
+            else
+            {
+                System.Windows.MessageBox.Show("Żadne właściwość nie została zmieniona.", "Uwaga!", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+            }
+
         }
         private void OnRefresh()
         {
@@ -89,9 +99,47 @@ namespace ChangeProperties
 
             mExplUtil.UpdateFileProperties(file, mPropDictonary);
         }
+        //private void ConvertToDynamicRows()
+        //{
+
+        //    Rows.Clear();
+        //    foreach (var file in _assemblyFiles)
+        //    {
+        //        var row = new System.Dynamic.ExpandoObject() as IDictionary<string, object>;
+
+        //        row["AssemblyFile"] = file;
+        //        row["Nazwa Części"] = file.File.Name;
+
+        //        string fileExtension = Path.GetExtension(file.File.Name).ToLower();
+        //        BitmapImage icon = null;
+
+
+        //        if (fileExtension == ".ipt")
+        //        {
+        //            icon = _iptIcon;
+        //        }
+        //        else if (fileExtension == ".iam")
+        //        {
+        //            icon = _iamIcon;
+        //        }
+
+        //        row["FileIcon"] = icon;
+
+        //        foreach (var propDef in PropertyDefinitions)
+        //        {
+        //            var displayName = Regex.Replace(propDef.DispName, @"[/\[\]]|kg/m", match =>
+        //                                    match.Value == "/" ? "lub" : (match.Value == "kg/m" ? "kg na m" : " ")
+        //                                ).Trim();
+        //            var property = file.Properties.FirstOrDefault(p => p.Name == displayName);
+        //            row[displayName] = property != null ? property.Value : "";
+        //        }
+        //        Rows.Add(row);
+        //        file.ChangedProperties.Clear();
+        //    }
+        //}
+
         private void ConvertToDynamicRows()
         {
-
             Rows.Clear();
             foreach (var file in _assemblyFiles)
             {
@@ -102,7 +150,6 @@ namespace ChangeProperties
 
                 string fileExtension = Path.GetExtension(file.File.Name).ToLower();
                 BitmapImage icon = null;
-
 
                 if (fileExtension == ".ipt")
                 {
@@ -121,20 +168,73 @@ namespace ChangeProperties
                                             match.Value == "/" ? "lub" : (match.Value == "kg/m" ? "kg na m" : " ")
                                         ).Trim();
                     var property = file.Properties.FirstOrDefault(p => p.Name == displayName);
-                    row[displayName] = property != null ? property.Value : "";
+
+                    if (displayName.ToLower().Contains("kolor") && property != null)
+                    {
+   
+                        if (_kolorWartosci.TryGetValue(property.Value.ToString(), out var colorName))
+                        {
+                            row[displayName] = $"{property.Value} | {colorName}";
+                        }
+                        else
+                        {
+                            row[displayName] = property.Value; 
+                        }
+                    }
+                    else
+                    {
+                        row[displayName] = property != null ? property.Value : "";
+                    }
                 }
                 Rows.Add(row);
                 file.ChangedProperties.Clear();
             }
         }
 
+        //public void UpdateProperty(dynamic row, string propertyName, object newValue)
+        //{
+        //    var modifiedPropertyName = Regex.Replace(propertyName, @"[/\[\]]|kg/m", match =>
+        //                                    match.Value == "/" ? "lub" : (match.Value == "kg/m" ? "kg na m" : " ")
+        //                                ).Trim(); ;
+
+        //    var assemblyFile = row.AssemblyFile as AssemblyFile;
+
+        //    if (assemblyFile != null)
+        //    {
+        //        var fileProperty = assemblyFile.Properties.FirstOrDefault(p => p.Name == modifiedPropertyName);
+
+        //        if (fileProperty != null)
+        //        {
+        //            string propertySysName = fileProperty.PropertyDef.SysName.ToString();
+
+        //            object primaryValue = assemblyFile.PrimaryProperties[fileProperty.Name];
+        //            if (!newValue.Equals(primaryValue))
+        //            {
+        //                if (assemblyFile.ChangedProperties.ContainsKey(propertySysName))
+        //                {
+        //                    assemblyFile.ChangedProperties[propertySysName] = newValue.ToString();
+        //                }
+        //                else
+        //                {
+        //                    assemblyFile.ChangedProperties.Add(propertySysName, newValue.ToString());
+        //                }
+        //            }
+        //            else
+        //            {
+        //                if (assemblyFile.ChangedProperties.ContainsKey(propertySysName))
+        //                {
+        //                    assemblyFile.ChangedProperties.Remove(propertySysName);
+        //                }
+        //            }
+        //        }
+        //    }
+        //}
         public void UpdateProperty(dynamic row, string propertyName, object newValue)
         {
             var modifiedPropertyName = Regex.Replace(propertyName, @"[/\[\]]|kg/m", match =>
-                                            match.Value == "/" ? "lub" : (match.Value == "kg/m" ? "kg na m" : " ")
-                                        ).Trim(); ;
+                                                match.Value == "/" ? "lub" : (match.Value == "kg/m" ? "kg na m" : " ")
+                                            ).Trim();
 
-            //var modifiedPropertyName = Regex.Replace(propertyName, @"[/\[\]]", match => match.Value == "/" ? "lub" : " ").TrimEnd();
             var assemblyFile = row.AssemblyFile as AssemblyFile;
 
             if (assemblyFile != null)
@@ -144,7 +244,13 @@ namespace ChangeProperties
                 if (fileProperty != null)
                 {
                     string propertySysName = fileProperty.PropertyDef.SysName.ToString();
-                    
+
+                    // Jeśli newValue jest w formacie "RALxxx | Nazwa Koloru", wyciągnij tylko "RALxxx"
+                    if (newValue is string combinedValue)
+                    {
+                        newValue = combinedValue.Split('|')[0].Trim();
+                    }
+
                     object primaryValue = assemblyFile.PrimaryProperties[fileProperty.Name];
                     if (!newValue.Equals(primaryValue))
                     {

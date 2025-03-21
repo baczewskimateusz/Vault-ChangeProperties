@@ -15,6 +15,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Xml.Serialization;
+using System.Xml;
 
 namespace ChangeProperties
 {
@@ -24,15 +25,48 @@ namespace ChangeProperties
         [XmlElement("SettingName")]
         public string mSettingName;
 
+        [XmlElement("ERPURL")]
+        public string ERPURL;
+
+        [XmlElement("ERPToken")]
+        public string ERPToken;
+
+        [XmlElement("ERPUser")]
+        public string ERPUser;
+
+        [XmlElement("slownikObrobkaPowierzchni")]
+        public string slownikObrobkaPowierzchni;
+
+        [XmlElement("slownikObrobkaCieplna")]
+        public string slownikObrobkaCieplna;
+
+        [XmlElement("slownikPrzygotowaniePow")]
+        public string slownikPrzygotowaniePow;
+
+        [XmlElement("slownikMalarnia")]
+        public string slownikMalarnia;
+
+        [XmlElement("slowniKolor")]
+        public string slowniKolor;
+
+        public static Settings readfromXML(string xml)
+        {
+            XmlSerializer xmlSerializer = new XmlSerializer(typeof(Settings));
+            XmlTextReader xmlReader = new XmlTextReader(new StringReader(xml));
+            return (Settings)xmlSerializer.Deserialize(xmlReader);
+        }
+
+        public Settings()
+        {
+
+        
+        }
+
         #region for future use
         //[XmlElement("OutputPath")]
         //public string mOutPutPath;
         #endregion for future use
 
-        private Settings()
-        {
-
-        }
 
         public void Save()
         {

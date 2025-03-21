@@ -10,6 +10,7 @@ namespace ChangeProperties
     public class AssemblyFile
     {
         public File File { get; set; }
+        public Item Item { get; set; }
         public Connection VaultConn { get; set; }
         public List<FileProperty> Properties { get; set; } = new List<FileProperty> { };
 
@@ -17,16 +18,17 @@ namespace ChangeProperties
         public Dictionary<string, object> PrimaryProperties { get; set; } = new Dictionary<string, object>();
         public List<PropDef> PropDefs { get; set; }
 
-        public AssemblyFile(File file, Connection vaultConn, List<PropDef> propDefs, Dictionary<long, string> propDefsDictionary, Dictionary<long, PropDef> propDefsIdDict)
+        public AssemblyFile(File file, Item item, Connection vaultConn, List<PropDef> propDefs, Dictionary<long, string> propDefsDictionary, Dictionary<long, PropDef> propDefsIdDict)
         {
             File = file;
+            Item = item;
             VaultConn = vaultConn;
             PropDefs = propDefs;
             CreatePropertiesList(propDefsDictionary, propDefsIdDict);
         }
         public void CreatePropertiesList(Dictionary<long, string> propDefsDictionary, Dictionary<long, PropDef> propDefsIdDict)
         {
-            PropInst[] itemProperties = VaultConn.WebServiceManager.PropertyService.GetPropertiesByEntityIds("ITEM", new long[] { File.Id });
+            PropInst[] itemProperties = VaultConn.WebServiceManager.PropertyService.GetPropertiesByEntityIds("ITEM", new long[] { Item.Id });
 
             itemProperties = itemProperties
                 .Where(prop => propDefsDictionary.ContainsKey(prop.PropDefId))

@@ -1,12 +1,8 @@
-using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Xml.Linq;
+using System.Xml;
 using Autodesk.Connectivity.Explorer.Extensibility;
 using Autodesk.Connectivity.Extensibility.Framework;
 using Autodesk.Connectivity.WebServices;
@@ -18,7 +14,6 @@ using ACW = Autodesk.Connectivity.WebServices;
 
 namespace ChangeProperties
 {
-   
     public class ChangePropertiesCommandExtension : IExplorerExtension
     {
        
@@ -59,10 +54,7 @@ namespace ChangeProperties
             File[] selectionFiles = vaultConn.WebServiceManager.DocumentService.GetLatestFilesByMasterIds(selectionId);
 
             #region Lista Wszystkich W³aœciwoœci Wraz z Nazwami
-
             ACW.PropDef[] propDefsItem = vaultConn.WebServiceManager.PropertyService.GetPropertyDefinitionsByEntityClassId("ITEM").Where(n => n.IsAct == true && !n.IsSys).ToArray();
-
-            
             #endregion
 
             List<string> propDefName = new List<string>();
@@ -82,33 +74,21 @@ namespace ChangeProperties
             List<File> allFiles = new List<File>();
             if (commandItem.Label == "Itemy wszystkich plików")
             {
-                FileAssocLite[] associationFiles = vaultConn.WebServiceManager.DocumentService.GetFileAssociationLitesByIds(
-                new long[] { selectionFiles[0].Id },
-                FileAssocAlg.LatestTip,
-                FileAssociationTypeEnum.Dependency,
-                false,
-                FileAssociationTypeEnum.Dependency,
-                true,
-                false,
-                false,
-                false
-                );
+                FilePathArray associationFiles = vaultConn.WebServiceManager.DocumentService.GetLatestAssociatedFilePathsByMasterIds(
+                    new long[] { selectionFiles[0].MasterId },
+                    FileAssociationTypeEnum.None,
+                    false,
+                    FileAssociationTypeEnum.Dependency,
+                    true,
+                    false,
+                    false,
+                    false
+                    ).First();
 
-                long[] assocDirectFiles = associationFiles
-                    .Where(file => !file.ExpectedVaultPath.Contains("Biblioteka") & !file.ExpectedVaultPath.Contains("Content Center"))
-                    .Select(n => n.CldFileId).ToArray();
-
-                File[] assocFilesArray = vaultConn.WebServiceManager.DocumentService.GetFilesByIds(assocDirectFiles);
-
-                allFiles.Add(selectionFiles[0]);
-
-                foreach (File file in assocFilesArray)
-                {
-                    if (!allFiles.Any(f => f.Name == file.Name))
-                    {
-                        allFiles.Add(file);
-                    }
-                }
+                allFiles = associationFiles.FilePaths
+                    .Where(file => !file.Path.ToString().Contains("Biblioteka") && !file.Path.ToString().Contains("Content Center"))
+                    .Select(n => n.File)
+                    .ToList();
             }
             else
 
@@ -122,13 +102,12 @@ namespace ChangeProperties
             List<Item> items = filesItems.Values.ToList();
             List<File> files = filesItems.Keys.ToList();
 
-                        
             #endregion
 
             #region Lista w³asciwosci dla wszytkich plików
-            List <PropDef> propList = CreatePropertyList(vaultConn, propDefsItem, items);
+            List<PropDef> propList = CreatePropertyList(vaultConn, propDefsItem, items);
             #endregion
-      
+
             #region tworzenie listy plikow AssemblyFile
             List<AssemblyFile> assemblyFiles = new List<AssemblyFile>();
 
@@ -142,9 +121,9 @@ namespace ChangeProperties
             Dictionary<long, PropDef> propDefsIdDict = propDefsItem.ToDictionary(p => p.Id, p => p);
 
             //Stopwatch stopwatch = Stopwatch.StartNew();
-            Parallel.ForEach(files, file =>
+            Parallel.ForEach(filesItems, kvp =>
             {
-                var assemblyFile = new AssemblyFile(file, vaultConn, propList, propDefsDictionary, propDefsIdDict);
+                var assemblyFile = new AssemblyFile(kvp.Key, kvp.Value, vaultConn, propList, propDefsDictionary, propDefsIdDict);
                 lock (assemblyFiles) { assemblyFiles.Add(assemblyFile); }
             });
             //stopwatch.Stop();
@@ -212,17 +191,26 @@ namespace ChangeProperties
                 }
                 ACW.PropInst[] itemProperties = vaultConn.WebServiceManager.PropertyService.GetPropertiesByEntityIds("ITEM", new long[] { oItem.Id });
 
+                //var currentItemProperties = propDefs
+                //    .Where(prop => itemProperties.Any(p => p.PropDefId == prop.Id));
+
+                //foreach (var property in currentItemProperties)
+                //{
+                //    itemUserProperties.Add(property);
+                //}
+                
                 var currentItemProperties = propDefs
-                    .Where(prop => itemProperties.Any(p => p.PropDefId == prop.Id));
+                    .Where(prop => itemProperties.Any(p => p.PropDefId == prop.Id))
+                    .ToList(); // Materializacja wyników, aby unikn¹æ wielokrotnego wykonywania zapytania
 
                 foreach (var property in currentItemProperties)
                 {
                     itemUserProperties.Add(property);
                 }
+
+
             }
-
             return itemUserProperties.OrderBy(p => p.DispName).ToList();
-
         }
 
         public IEnumerable<CustomEntityHandler> CustomEntityHandlers()

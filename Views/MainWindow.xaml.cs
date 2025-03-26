@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.Diagnostics;
@@ -37,6 +38,10 @@ namespace ChangeProperties
         private string kolor { get; set; }
 
         Dictionary<string, List<string>> listBoxColumn;
+
+
+        private static readonly Regex _propNameRegex = new Regex(@"[/\[\]]|kg/m", RegexOptions.Compiled);
+
         public MainWindow(List<AssemblyFile> assemblyFiles, List<PropDef> propDefs, Connection vaultConn)
         {
             InitializeComponent();
@@ -45,6 +50,7 @@ namespace ChangeProperties
             
             var iptIcon = (BitmapImage)Resources["IptIcon"];
             var iamIcon = (BitmapImage)Resources["IamIcon"];
+
             GetSettings();
             SetListBoxValues();
 
@@ -52,6 +58,7 @@ namespace ChangeProperties
             CreateColumn(propDefs);
             viewModel = new MainViewModel(assemblyFiles, propDefs, vaultConn, iptIcon, iamIcon, kolorWartosci);
             DataContext = viewModel;
+
         }
 
         private void OnCellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
@@ -354,55 +361,14 @@ namespace ChangeProperties
                         };
 
                         break;
-                    //case DataType.String:
-                    //    default:
-                    //    if (listBoxColumn.ContainsKey(name.ToLower()))
-                    //    {
-                    //        var comboBoxFactory1 = new FrameworkElementFactory(typeof(ComboBox));
-                    //        comboBoxFactory1.SetValue(ComboBox.ItemsSourceProperty, listBoxColumn[name.ToLower()]);
-                    //        comboBoxFactory1.SetBinding(ComboBox.SelectedItemProperty, new Binding(name)
-                    //        {
-                    //            Mode = BindingMode.TwoWay,
-                    //            UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
-                    //        });
-
-                    //        comboBoxFactory1.SetValue(ComboBox.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-                    //        comboBoxFactory1.SetValue(ComboBox.VerticalAlignmentProperty, VerticalAlignment.Center);
-                    //        comboBoxFactory1.AddHandler(ComboBox.SelectionChangedEvent, new SelectionChangedEventHandler(ComboBox_SelectionChanged));
-
-                    //        var comboBoxTemplate1 = new DataTemplate
-                    //        {
-                    //            VisualTree = comboBoxFactory1
-                    //        };
-
-                    //        dataGridColumn = new DataGridTemplateColumn
-                    //        {
-                    //            Header = name,
-                    //            CellTemplate = comboBoxTemplate1,
-                    //            CellEditingTemplate = comboBoxTemplate1,
-                    //            IsReadOnly = readOnlyColumn
-                    //        };
-                    //    }
-                    //    else
-                    //    {
-                    //        // Domyślna kolumna tekstowa dla pozostałych kolumn
-                    //        dataGridColumn = new DataGridTextColumn
-                    //        {
-                    //            Header = name,
-                    //            Binding = new Binding(name),
-                    //            Width = new DataGridLength(1, DataGridLengthUnitType.Auto),
-                    //            IsReadOnly = readOnlyColumn,
-                    //        };
-                    //    }
-                    //    break;
                     case DataType.String:
                     default:
                         if (listBoxColumn.ContainsKey(name.ToLower()))
                         {
-                            
+
                             var comboBoxFactory1 = new FrameworkElementFactory(typeof(ComboBox));
                             comboBoxFactory1.SetValue(ComboBox.ItemsSourceProperty, listBoxColumn[name.ToLower()]);
-                            if (name.ToLower().Contains("kolor")) 
+                            if (name.ToLower().Contains("kolor"))
                             {
                                 var converter = new RalColorConverter(kolorWartosci);
                                 comboBoxFactory1.SetBinding(ComboBox.SelectedItemProperty, new Binding(name)
@@ -418,7 +384,6 @@ namespace ChangeProperties
                                 {
                                     Mode = BindingMode.TwoWay,
                                     UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
-                                    // Bez konwertera dla innych kolumn
                                 });
                             }
 
@@ -441,7 +406,6 @@ namespace ChangeProperties
                         }
                         else
                         {
-                            // Domyślna kolumna tekstowa dla pozostałych kolumn
                             dataGridColumn = new DataGridTextColumn
                             {
                                 Header = name,

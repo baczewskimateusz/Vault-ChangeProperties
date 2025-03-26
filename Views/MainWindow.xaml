@@ -1,7 +1,8 @@
 ﻿<Window x:Class="ChangeProperties.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Zmiana właściwości" Height="600" Width="1000">
+        Title="Zmiana właściwości" Height="600" Width="1000"
+        WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <BitmapImage x:Key="IptIcon" UriSource="Images/ipt.png"/>
         <BitmapImage x:Key="IamIcon" UriSource="Images/iam.png"/>

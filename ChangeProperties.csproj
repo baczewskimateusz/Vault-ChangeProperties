@@ -100,6 +100,7 @@
   <ItemGroup>
     <Compile Include="Models\AssemblyFile.cs" />
     <Compile Include="ChangePropertiesCommandExtension.cs" />
+    <Compile Include="Models\LoadingWindowHelper.cs" />
     <Compile Include="Models\UserDictionaries.cs" />
     <Compile Include="Models\UserDictionary.cs" />
     <Compile Include="Models\DictionaryElement.cs" />
@@ -114,7 +115,11 @@
     <Compile Include="Services\DictionaryService.cs" />
     <Compile Include="Settings.cs" />
     <Compile Include="Util.cs" />
+    <Compile Include="ViewModels\LoadingViewModel.cs" />
     <Compile Include="ViewModels\MainViewModel.cs" />
+    <Compile Include="Views\LoadinWindow.xaml.cs">
+      <DependentUpon>LoadinWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Views\MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
     </Compile>
@@ -141,6 +146,10 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
+    <Page Include="Views\LoadinWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="Views\MainWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>XamlIntelliSenseFileGenerator</Generator>

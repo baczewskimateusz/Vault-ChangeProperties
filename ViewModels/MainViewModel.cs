@@ -43,7 +43,7 @@ namespace ChangeProperties
             ConvertToDynamicRows();
 
             SaveCommand = new RelayCommand(OnSave);
- 
+
         }
 
         private void OnSave()
@@ -145,9 +145,11 @@ namespace ChangeProperties
                         row[displayName] = property != null ? property.Value : "";
                     }
                 }
+                
                 Rows.Add(row);
                 file.ChangedProperties.Clear();
             }
+            
         }
 
         public void UpdateProperty(dynamic row, string propertyName, object newValue)

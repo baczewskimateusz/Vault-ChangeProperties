@@ -98,8 +98,6 @@ namespace ChangeProperties
                 XmlSerializer serializer = new XmlSerializer(typeof(Settings));
                 retVal = (Settings)serializer.Deserialize(reader);
             }
-
-
             return retVal;
         }
     }

@@ -74,6 +74,5 @@ namespace ChangeProperties.Services
                 return result;
             }
         }
-
     }
 }

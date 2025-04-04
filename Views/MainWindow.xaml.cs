@@ -1,13 +1,8 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Data.Common;
-using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
-using System.Runtime;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -36,6 +31,7 @@ namespace ChangeProperties
         private Dictionary<string, string> kolorWartosci { get;set; }
         private string malarnia { get; set; }
         private string kolor { get; set; }
+        private bool _columnsVisible = true;
 
         Dictionary<string, List<string>> listBoxColumn;
 
@@ -56,10 +52,67 @@ namespace ChangeProperties
 
 
             CreateColumn(propDefs);
+            SetupBlockedColumnVisibility();
+
+ 
             viewModel = new MainViewModel(assemblyFiles, propDefs, vaultConn, iptIcon, iamIcon, kolorWartosci);
             DataContext = viewModel;
-
+           
         }
+
+        private void SetupBlockedColumnVisibility()
+        {
+            foreach (var column in GetReadOnlyColumns())
+            {
+                var checkBox = new CheckBox
+                {
+                    Content = column.Header,
+                    IsChecked = true,
+                    Margin = new Thickness(5, 0, 5, 0),
+                    Tag = column,
+                };
+
+                checkBox.Checked += (s, e) => ToggleColumnVisibility(column, true);
+                checkBox.Unchecked += (s, e) => ToggleColumnVisibility(column, false);
+
+            }
+        }
+
+        private void ToggleColumnsButton_Click(object sender, RoutedEventArgs e)
+        {
+            _columnsVisible = !_columnsVisible;
+            UpdateToggleButtonText();
+            ToggleAllColumnsVisibility(_columnsVisible);
+        }
+
+        private IEnumerable<DataGridColumn> GetReadOnlyColumns()
+        {
+            var readOnlyColumns = DynamicDataGrid.Columns.OfType<DataGridColumn>()
+                                   .Skip(2)
+                                   .Where(c => c.IsReadOnly && c.Header?.ToString() != "Numer")
+                                   .ToList();
+
+            return readOnlyColumns;
+        }
+
+        private void ToggleColumnVisibility(DataGridColumn column, bool isVisible)
+        {
+            column.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void ToggleAllColumnsVisibility(bool isVisible)
+        {
+            foreach (var column in GetReadOnlyColumns())
+            {
+                ToggleColumnVisibility(column, isVisible);
+            }
+        }
+
+        private void UpdateToggleButtonText()
+        {
+            ToggleColumnsButton.Content = _columnsVisible ? "Ukryj" : "Pokaż";
+        }
+
 
         private void OnCellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
         {
@@ -201,26 +254,38 @@ namespace ChangeProperties
 
             List<string> obrobkaCieplnaList = obrobkaCieplnaWartosci.Keys.ToList();
             List<string> przygotowaniePowList = przygotowaniePowWartosci.Keys.ToList();
+            List<string> obrobkaPowList = obrobkaPowWartosci.Keys.ToList();
+            List<string> malarniaList = malarniaWartosci.Keys.ToList();
+            List<string> czescZamiennaList = czescZamiennaWartosci.Keys.ToList();
+            List<string> rodzajZmatowieniaList = rodzajZmatowieniaWartosci.Keys.ToList();
+            List<string> rodzajWykończeniaList= rodzajWykończeniaWartosc.Keys.ToList();
 
             List<string> kolorList = kolorWartosci
             .Select(kvp => $"{kvp.Key} | {kvp.Value}")
             .ToList();
 
-            obrobkaCieplnaList.Insert(0, "Brak");
-            przygotowaniePowList.Insert(0, "Brak");
-          
+            kolorList.Insert(0, "");
+            obrobkaCieplnaList.Insert(0, "");
+            obrobkaPowList.Insert(0, "");
+            przygotowaniePowList.Insert(0, "");
+            malarniaList.Insert(0, "");
+            czescZamiennaList.Insert(0, "");
+            rodzajZmatowieniaList.Insert(0, "");
+            rodzajWykończeniaList.Insert(0, "");
+
             listBoxColumn = new Dictionary<string, List<string>>
             {
                 { obrobkaCieplna.ToLower(), obrobkaCieplnaList },
                 { przygotowaniePow.ToLower(), przygotowaniePowList },
-                { obrobkaPow.ToLower(), new List<string>(obrobkaPowWartosci.Keys.ToList()) },
-                { malarnia.ToLower(), new List<string>(malarniaWartosci.Keys.ToList()) },
-                { "kolor", new List<string>(kolorList) },
-                { "część zamienna", new List<string>(czescZamiennaWartosci.Keys.ToList()) },
-                { "rodzaj zmatowienia", new List<string>(rodzajZmatowieniaWartosci.Keys.ToList()) },
-                { "rodzaj wykończenia", new List<string>(rodzajWykończeniaWartosc.Keys.ToList()) }
+                { obrobkaPow.ToLower(), obrobkaPowList },
+                { malarnia.ToLower(), malarniaList },
+                { "kolor", kolorList},
+                { "część zamienna", czescZamiennaList },
+                { "rodzaj zmatowienia", rodzajZmatowieniaList },
+                { "rodzaj wykończenia", rodzajWykończeniaList}
             };
         }
+
         public void CreateColumn(List<PropDef> propDefs)
         {
             DynamicDataGrid.EnableRowVirtualization = false;
@@ -284,6 +349,8 @@ namespace ChangeProperties
 
                 mappingDirection.Add(propName, IsTwoDirectionMapping(propDef));
             }
+
+            NumerHighlightConverter numerHighlightConverter = new NumerHighlightConverter();
 
             foreach (var type in types)
             {
@@ -386,7 +453,7 @@ namespace ChangeProperties
                                     UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
                                 });
                             }
-
+                            
                             comboBoxFactory1.SetValue(ComboBox.HorizontalAlignmentProperty, HorizontalAlignment.Center);
                             comboBoxFactory1.SetValue(ComboBox.VerticalAlignmentProperty, VerticalAlignment.Center);
                             comboBoxFactory1.AddHandler(ComboBox.SelectionChangedEvent, new SelectionChangedEventHandler(ComboBox_SelectionChanged));
@@ -418,37 +485,66 @@ namespace ChangeProperties
                 }
                 DynamicDataGrid.Columns.Add(dataGridColumn);
             }
+
             foreach (DataGridColumn column in DynamicDataGrid.Columns)
             {
-                if (column.Header.ToString() != "Nazwa Części")
+
+                if (column is DataGridTextColumn textColumn)
                 {
-                    if (column is DataGridTextColumn textColumn)
+                    textColumn.ElementStyle = new Style(typeof(TextBlock))
                     {
-                        textColumn.ElementStyle = new Style(typeof(TextBlock))
+                        Setters =
                         {
-                            Setters =
-                            {
                             new Setter(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center),
                             new Setter(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center),
                             new Setter(TextBlock.TextAlignmentProperty, TextAlignment.Center),
-                            new Setter(TextBlock.PaddingProperty, new Thickness(3))
-                            }
-                        };
-                    }
-                    if (column.IsReadOnly)
+                            new Setter(TextBlock.PaddingProperty,
+                                column.Header?.ToString() == "Nazwa Części"
+                                    ? new Thickness(5)
+                                    : new Thickness(3))
+                        }
+                    };
+
+                    if (column.Header?.ToString() == "Nazwa Części")
                     {
-                        column.CellStyle = new Style(typeof(DataGridCell))
+                        textColumn.ElementStyle.Setters.Add(
+                            new Setter(Control.FontWeightProperty, FontWeights.Bold));
+                    }
+                }
+
+
+                if (column.Header?.ToString() == "Numer")
+                {
+                    var highlightStyle = new Style(typeof(DataGridCell));
+
+
+                    highlightStyle.Setters.Add(new Setter(Control.BackgroundProperty,
+                        new Binding(".")
                         {
-                            Setters =
-                            {
+                            Converter = new NumerHighlightConverter(),
+                            Mode = BindingMode.OneWay
+                        }));
+
+                    highlightStyle.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.Black));
+                    highlightStyle.Setters.Add(new Setter(Control.FontWeightProperty, FontWeights.Bold));
+                    highlightStyle.Setters.Add(new Setter(DataGridCell.IsHitTestVisibleProperty, false));
+
+                    column.CellStyle = highlightStyle;
+
+                }
+
+                else if (column.IsReadOnly)
+                {
+                    column.CellStyle = new Style(typeof(DataGridCell))
+                    {
+                        Setters =
+                        {
                             new Setter(Control.BackgroundProperty, Brushes.LightGray),
                             new Setter(Control.ForegroundProperty, Brushes.Black),
                             new Setter(Control.FontWeightProperty, FontWeights.Bold),
-                            new Setter(DataGridCell.IsHitTestVisibleProperty, false),
-
-                            }
-                        };
-                    }
+                            new Setter(DataGridCell.IsHitTestVisibleProperty, false)
+                        }
+                    };
                 }
             }
         }

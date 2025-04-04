@@ -5,13 +5,11 @@ namespace ChangeProperties
 {
     public partial class LoadingWindow : Window
     {
-
         public LoadingWindow()
         {
             InitializeComponent();
-
             var viewModel = new LoadingViewModel();
-            viewModel.RequestClose += () => this.Close(); // Podpięcie zamknięcia
+            viewModel.RequestClose += () => this.Close(); 
             DataContext = viewModel;
         }
         public void UpdateProgress(int value)

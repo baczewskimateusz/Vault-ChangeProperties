@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Autodesk.Connectivity.Extensibility.Framework;
 
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
@@ -13,7 +14,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCopyright("Copyright © Kratki")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
-
+[assembly: ApiVersion("15.0")]
+[assembly: ExtensionId("735b0a6d-d471-48f9-bb67-d3a49e5242a6")]
 // Setting ComVisible to false makes the types in this assembly not visible
 // to COM components.  If you need to access a type in this assembly from
 // COM, set the ComVisible attribute to true on that type.

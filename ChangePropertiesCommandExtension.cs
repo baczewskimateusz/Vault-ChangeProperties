@@ -1,29 +1,20 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Threading;
-using System.Xml;
 using Autodesk.Connectivity.Explorer.Extensibility;
-using Autodesk.Connectivity.Extensibility.Framework;
 using Autodesk.Connectivity.WebServices;
-using Autodesk.DataManagement.Client.Framework.Currency;
 using Autodesk.DataManagement.Client.Framework.Vault.Currency.Connections;
 using ChangeProperties.Models;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel;
 using ACW = Autodesk.Connectivity.WebServices;
-
-[assembly: ApiVersion("15.0")]
-[assembly: ExtensionId("735b0a6d-d471-48f9-bb67-d3a49e5242a6")]
 
 namespace ChangeProperties
 {
     public class ChangePropertiesCommandExtension : IExplorerExtension
     {
+
         public IEnumerable<CommandSite> CommandSites()
         {
             CommandSite fileContextCmdSite = new CommandSite("ChangePropertiesCommand.FileContextMenu", "Zmiana w³aœciwoœci itemu")
@@ -51,9 +42,10 @@ namespace ChangeProperties
             List<CommandSite> sites = new List<CommandSite>();
             sites.Add(fileContextCmdSite);
             return sites;
-            
+
         }
 
+        
         void ChangePropertiesCommandHandler(object sender, CommandItemEventArgs e)
         {
             //Stopwatch stopwatchAll = Stopwatch.StartNew();
@@ -67,6 +59,15 @@ namespace ChangeProperties
 
             #region Lista Wszystkich W³aœciwoœci Wraz z Nazwami
             ACW.PropDef[] propDefsItem = vaultConn.WebServiceManager.PropertyService.GetPropertyDefinitionsByEntityClassId("ITEM").Where(n => n.IsAct == true && !n.IsSys).ToArray();
+            ACW.PropDef[] descriptionPropDef = vaultConn.WebServiceManager.PropertyService.FindPropertyDefinitionsBySystemNames("ITEM", new string[] { "Description(Item,CO)", "Number" });
+
+
+            if (descriptionPropDef.Length > 0)
+            {
+                var combinedList = propDefsItem.ToList();
+                combinedList.AddRange(descriptionPropDef);
+                propDefsItem = combinedList.ToArray();
+            }
 
             HashSet<long> propDefsItemIds = new HashSet<long>(propDefsItem.Select(p => p.Id));
             #endregion
@@ -212,7 +213,7 @@ namespace ChangeProperties
             bool sheetmetalItemProcessed = false;
 
             HashSet<PropDef> itemUserProperties = new HashSet<PropDef>();
-           
+
             foreach (Item oItem in allItems)
             {
                 string itemCatName = oItem.Cat.CatName;
@@ -244,7 +245,7 @@ namespace ChangeProperties
 
                 var currentItemProperties = propDefs
                     .Where(prop => itemProperties.Any(p => p.PropDefId == prop.Id))
-                    .ToList(); 
+                    .ToList();
 
                 foreach (var property in currentItemProperties)
                 {

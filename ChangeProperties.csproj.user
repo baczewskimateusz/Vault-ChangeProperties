@@ -4,4 +4,7 @@
     <StartAction>Program</StartAction>
     <StartProgram>C:\Program Files\Autodesk\Vault Client 2022\Explorer\Connectivity.VaultPro.exe</StartProgram>
   </PropertyGroup>
+  <PropertyGroup>
+    <EnableSecurityDebugging>false</EnableSecurityDebugging>
+  </PropertyGroup>
 </Project>

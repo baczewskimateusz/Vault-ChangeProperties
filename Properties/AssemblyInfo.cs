@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Windows.Media;
 using Autodesk.Connectivity.Extensibility.Framework;
 
 // General Information about an assembly is controlled through the following
@@ -20,7 +21,7 @@ using Autodesk.Connectivity.Extensibility.Framework;
 // to COM components.  If you need to access a type in this assembly from
 // COM, set the ComVisible attribute to true on that type.
 [assembly: ComVisible(false)]
-
+[assembly: DisableDpiAwareness]
 // The following GUID is for the ID of the typelib if this project is exposed to COM
 [assembly: Guid("735b0a6d-d471-48f9-bb67-d3a49e5242a6")]
 

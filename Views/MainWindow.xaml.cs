@@ -6,7 +6,9 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Autodesk.Connectivity.WebServices;
@@ -20,8 +22,6 @@ namespace ChangeProperties
     {
         private MainViewModel viewModel;
         private Connection _vaultConn;
-        private Dictionary<object, object> _oldValues = new Dictionary<object, object>();
-
         private string vendoUrl { get; set; }
         private string vendoToken { get; set; }
         private string vendoUserID { get; set; }
@@ -32,18 +32,16 @@ namespace ChangeProperties
         private string malarnia { get; set; }
         private string kolor { get; set; }
         private bool _columnsVisible = true;
-
         Dictionary<string, List<string>> listBoxColumn;
-
-
-        private static readonly Regex _propNameRegex = new Regex(@"[/\[\]]|kg/m", RegexOptions.Compiled);
-
+        private System.Windows.Forms.Screen _currentScreen;
         public MainWindow(List<AssemblyFile> assemblyFiles, List<PropDef> propDefs, Connection vaultConn)
         {
+            RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
             InitializeComponent();
 
+
             _vaultConn = vaultConn;
-            
+
             var iptIcon = (BitmapImage)Resources["IptIcon"];
             var iamIcon = (BitmapImage)Resources["IamIcon"];
 
@@ -54,11 +52,12 @@ namespace ChangeProperties
             CreateColumn(propDefs);
             SetupBlockedColumnVisibility();
 
- 
+           
             viewModel = new MainViewModel(assemblyFiles, propDefs, vaultConn, iptIcon, iamIcon, kolorWartosci);
             DataContext = viewModel;
-           
+
         }
+
 
         private void SetupBlockedColumnVisibility()
         {
@@ -77,6 +76,8 @@ namespace ChangeProperties
 
             }
         }
+
+
 
         private void ToggleColumnsButton_Click(object sender, RoutedEventArgs e)
         {
@@ -311,24 +312,23 @@ namespace ChangeProperties
                 CellStyle = new Style(typeof(DataGridCell))
                 {
                     Setters =
-                    {
+            {
                         new Setter(DataGridCell.IsHitTestVisibleProperty, false),
                         new Setter(Control.BackgroundProperty, Brushes.LightGray)
-                    }
+            }
                 },
 
                 ElementStyle = new Style(typeof(TextBlock))
                 {
                     Setters =
-                    {
+            {
                         new Setter(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center),
                         new Setter(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center),
                         new Setter(TextBlock.TextAlignmentProperty, TextAlignment.Center),
                         new Setter(TextBlock.FontSizeProperty, 13.0),
                         new Setter(TextBlock.PaddingProperty, new Thickness(5)),
                         new Setter(Control.FontWeightProperty, FontWeights.Bold),
-
-                    }
+            }
                 }
             });
 
@@ -346,7 +346,7 @@ namespace ChangeProperties
                 }
 
                 types.Add(propName, propDef.Typ);
-
+                
                 mappingDirection.Add(propName, IsTwoDirectionMapping(propDef));
             }
 
@@ -367,24 +367,21 @@ namespace ChangeProperties
                 {
                     case DataType.Bool:
                         var comboBoxFactory = new FrameworkElementFactory(typeof(ComboBox));
-
+                        comboBoxFactory.SetValue(UIElement.SnapsToDevicePixelsProperty, true);
+                        comboBoxFactory.SetValue(FrameworkElement.UseLayoutRoundingProperty, true);
+                        comboBoxFactory.SetValue(RenderOptions.BitmapScalingModeProperty, BitmapScalingMode.HighQuality);
                         comboBoxFactory.SetValue(ComboBox.ItemsSourceProperty, new List<bool> { true, false });
-
                         comboBoxFactory.SetBinding(ComboBox.SelectedItemProperty, new Binding(name)
                         {
                             Mode = BindingMode.TwoWay,
                             UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
                         });
-
-                        comboBoxFactory.SetValue(ComboBox.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-                        comboBoxFactory.SetValue(ComboBox.VerticalAlignmentProperty, VerticalAlignment.Center);
-
+                        comboBoxFactory.SetValue(ComboBox.HorizontalAlignmentProperty, HorizontalAlignment.Stretch);
+                        comboBoxFactory.SetValue(ComboBox.MinWidthProperty, 80.0);
+                        comboBoxFactory.SetValue(ComboBox.MaxWidthProperty, Double.PositiveInfinity);
                         comboBoxFactory.AddHandler(ComboBox.SelectionChangedEvent, new SelectionChangedEventHandler(ComboBox_SelectionChanged));
 
-                        var comboBoxTemplate = new DataTemplate
-                        {
-                            VisualTree = comboBoxFactory
-                        };
+                        var comboBoxTemplate = new DataTemplate { VisualTree = comboBoxFactory };
 
                         dataGridColumn = new DataGridTemplateColumn
                         {
@@ -426,36 +423,23 @@ namespace ChangeProperties
                             Width = new DataGridLength(1, DataGridLengthUnitType.Auto),
                             IsReadOnly = readOnlyColumn
                         };
-
                         break;
+
                     case DataType.String:
                     default:
                         if (listBoxColumn.ContainsKey(name.ToLower()))
                         {
-
                             var comboBoxFactory1 = new FrameworkElementFactory(typeof(ComboBox));
                             comboBoxFactory1.SetValue(ComboBox.ItemsSourceProperty, listBoxColumn[name.ToLower()]);
-                            if (name.ToLower().Contains("kolor"))
+                            comboBoxFactory1.SetValue(System.Windows.Controls.Primitives.Popup.AllowsTransparencyProperty, false);
+                            comboBoxFactory1.SetValue(UIElement.SnapsToDevicePixelsProperty, false);
+                            comboBoxFactory1.SetValue(FrameworkElement.UseLayoutRoundingProperty, false);
+                            comboBoxFactory1.SetBinding(ComboBox.SelectedItemProperty, new Binding(name)
                             {
-                                var converter = new RalColorConverter(kolorWartosci);
-                                comboBoxFactory1.SetBinding(ComboBox.SelectedItemProperty, new Binding(name)
-                                {
-                                    Mode = BindingMode.TwoWay,
-                                    UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
-                                    Converter = converter
-                                });
-                            }
-                            else
-                            {
-                                comboBoxFactory1.SetBinding(ComboBox.SelectedItemProperty, new Binding(name)
-                                {
-                                    Mode = BindingMode.TwoWay,
-                                    UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
-                                });
-                            }
-                            
-                            comboBoxFactory1.SetValue(ComboBox.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-                            comboBoxFactory1.SetValue(ComboBox.VerticalAlignmentProperty, VerticalAlignment.Center);
+                                Mode = BindingMode.TwoWay,
+                                UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+                            });
+                            comboBoxFactory1.SetValue(ComboBox.HorizontalAlignmentProperty, HorizontalAlignment.Stretch);
                             comboBoxFactory1.AddHandler(ComboBox.SelectionChangedEvent, new SelectionChangedEventHandler(ComboBox_SelectionChanged));
 
                             var comboBoxTemplate1 = new DataTemplate
@@ -485,7 +469,7 @@ namespace ChangeProperties
                 }
                 DynamicDataGrid.Columns.Add(dataGridColumn);
             }
-
+        
             foreach (DataGridColumn column in DynamicDataGrid.Columns)
             {
 
@@ -574,7 +558,6 @@ namespace ChangeProperties
                 }
             }
         }
-
         private bool IsTwoDirectionMapping(PropDef propDef)
         {
 
@@ -593,5 +576,7 @@ namespace ChangeProperties
             }
             return true;
         }
+
+      
     }
 }

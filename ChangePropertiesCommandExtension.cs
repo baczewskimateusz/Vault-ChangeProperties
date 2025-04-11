@@ -1,22 +1,50 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Forms;
+using System.Windows.Interop;
+using System.Windows.Media;
 using Autodesk.Connectivity.Explorer.Extensibility;
 using Autodesk.Connectivity.WebServices;
 using Autodesk.DataManagement.Client.Framework.Vault.Currency.Connections;
 using ChangeProperties.Models;
 using ACW = Autodesk.Connectivity.WebServices;
+using MessageBox = System.Windows.Forms.MessageBox;
 
 namespace ChangeProperties
 {
+
     public class ChangePropertiesCommandExtension : IExplorerExtension
     {
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern long SetWindowLong(IntPtr hwnd, int nIndex, long dwNewLong);
+
+        [DllImport("user32.dll")]
+        static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
+
+        const int GWL_STYLE = -16;
+        const long WS_CHILD = 0x40000000;
 
         public IEnumerable<CommandSite> CommandSites()
         {
+
+            //if (Environment.OSVersion.Version >= new Version(6, 3, 0))
+            //{
+            //    if (Environment.OSVersion.Version >= new Version(10, 0, 15063))
+            //    {
+            //        NativeMethods.SetProcessDpiAwarenessContext((int)NativeMethods.DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+            //    }
+            //    else NativeMethods.SetProcessDpiAwareness(NativeMethods.PROCESS_DPI_AWARENESS.Process_Per_Monitor_DPI_Aware);
+            //}
+            //else NativeMethods.SetProcessDPIAware();
+
             CommandSite fileContextCmdSite = new CommandSite("ChangePropertiesCommand.FileContextMenu", "Zmiana w³aœciwoœci itemu")
             {
                 Location = CommandSiteLocation.FileContextMenu,
@@ -43,9 +71,10 @@ namespace ChangeProperties
             sites.Add(fileContextCmdSite);
             return sites;
 
+ 
         }
 
-        
+
         void ChangePropertiesCommandHandler(object sender, CommandItemEventArgs e)
         {
             //Stopwatch stopwatchAll = Stopwatch.StartNew();
@@ -111,14 +140,34 @@ namespace ChangeProperties
             #endregion
 
             #region Wyœwietlenie MainWindow oraz rejestracja Eventu do zamkniêcia LoadingWindow
+
+            IntPtr vaultMainWindowHandle = Process.GetCurrentProcess().MainWindowHandle;
             MainWindow mainWindow = new MainWindow(assemblyFiles, propList, vaultConn);
 
             mainWindow.ContentRendered += (s, args) =>
             {
                 loadingWindowHelper.CloseProgressWindow();
             };
+
+
+
+            WindowInteropHelper helper = new WindowInteropHelper(mainWindow);
+            helper.Owner = vaultMainWindowHandle;
+
+            Screen screen = Screen.FromHandle(helper.Owner);
+            Rectangle bounds = screen.WorkingArea;
+
+            mainWindow.WindowStartupLocation = WindowStartupLocation.Manual;
+            mainWindow.Left = bounds.Left + (bounds.Width - mainWindow.Width) / 2;
+            mainWindow.Top = bounds.Top + (bounds.Height - mainWindow.Height) / 2;
+
             mainWindow.ShowDialog();
+
+            //Matrix m = PresentationSource.FromVisual(mainWindow).CompositionTarget.TransformToDevice;
+
+
             #endregion
+
 
             //stopwatchAll.Stop();
             //MessageBox.Show($"stopwatchAll : {stopwatchAll.ElapsedMilliseconds} ms");

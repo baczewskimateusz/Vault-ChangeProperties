@@ -5,6 +5,7 @@
         WindowStartupLocation="CenterScreen" 
         ResizeMode="NoResize"
         WindowStyle="None"
+        
         >
     
     <Window.Resources>
